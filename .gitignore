@@ -1,0 +1,51 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Packaging and build output
+.eggs/
+*.egg-info/
+dist/
+build/
+pip-wheel-metadata/
+*.whl
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# IDE and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs and local runtime data
+*.log
+logs/
+tmp/
+temp/
+
+# Local model downloads and generated artifacts
+models/
+checkpoints/
+outputs/
+artifacts/
+wandb/
+mlruns/
