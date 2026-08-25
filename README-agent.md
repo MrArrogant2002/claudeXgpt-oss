@@ -99,6 +99,20 @@ python cli.py --project /path/to/repo "List every file that imports the database
 python cli.py --project /path/to/repo "Explain how errors are handled in the request loop"
 ```
 
+## Step 4 — full-loop test (recommended)
+
+M0 proved the round-trip; this proves the whole funnel (glob→grep→read→answer)
+against a bundled fixture repo with a known answer:
+
+```bash
+python e2e_test.py
+```
+
+It asserts the agent (1) completed, (2) actually called ≥1 tool, and (3) grounded
+its answer in the code (mentions `auth.py` / `validate_token` / the token check).
+Exit code 0 = all checks passed. If some checks fail, bump `--reasoning` or tweak
+the developer instructions in `agent/loop.py`.
+
 ---
 
 ## CLI flags
