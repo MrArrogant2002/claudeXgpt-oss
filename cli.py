@@ -94,6 +94,17 @@ def main():
             print(
                 res.answer if res.answer else "(model returned an empty final answer)"
             )
+        elif res.reason == "no_answer":
+            print(
+                "[no answer] The model kept returning an empty final even after being "
+                "nudged. Try --reasoning high, raise AGENT_MAX_TOKENS, or ask a more "
+                "specific question."
+            )
+        elif res.reason == "max_turns":
+            print(
+                f"[stopped: hit max turns ({config.MAX_TURNS})] The model kept calling "
+                "tools without concluding. Raise AGENT_MAX_TURNS or narrow the question."
+            )
         else:
             print(f"[stopped: {res.reason}] {res.answer}".rstrip())
 

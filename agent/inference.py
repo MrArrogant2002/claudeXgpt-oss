@@ -23,6 +23,16 @@ def health() -> dict:
         return {"status": r.text.strip()}
 
 
+def hit_output_limit(data) -> bool:
+    """True if generation stopped because it hit n_predict (was cut off), rather
+    than reaching a natural stop token. Field names vary across llama.cpp builds."""
+    if data.get("stopped_limit") is True:
+        return True
+    if data.get("stop_type") == "limit":
+        return True
+    return False
+
+
 def complete(
     prefill_ids, stop_ids=None, max_tokens=None, temperature=None, cache_prompt=True
 ):

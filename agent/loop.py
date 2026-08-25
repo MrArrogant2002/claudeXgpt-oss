@@ -1,8 +1,10 @@
 """Orchestration loop (M0-M4/§4) — the agent's center of gravity.
 
 One loop: render Harmony -> raw completion -> parse channels ->
-  * no tool calls  -> return the final answer
   * tool calls     -> run them (serially), append results, loop again
+  * final answer   -> return it
+  * empty final    -> recover: drop stale reasoning, escalate tokens if the
+                      output was cut off, nudge the model, retry (bounded)
 with a max_turns circuit breaker, tool errors treated as data, and stale
 chain-of-thought dropped at the start of each new user turn.
 """
@@ -15,17 +17,25 @@ from . import harmony_codec as hc
 
 DEFAULT_INSTRUCTIONS = (
     "You are a coding assistant working inside a code repository. "
-    "Before answering questions about the code, USE THE TOOLS to find the truth: "
-    "use `glob` to locate files by name/pattern, `grep` to search file contents for "
-    "symbols or strings, and `read` to read the specific lines that matter. "
-    "Prefer narrow, targeted tool calls and follow imports/references across files. "
-    "Only give your final answer once it is grounded in the actual code you read."
+    "Answer questions by first investigating the code with the tools, then explaining. "
+    "Funnel: use `glob` to locate files, `grep` to find where a symbol or behavior is "
+    "defined, and `read` to read the specific lines. "
+    "Prefer the actual IMPLEMENTATION/source files over test or config files when "
+    "explaining how something works — read the module that DEFINES the behavior, not "
+    "just its tests. Follow imports and references across files as needed. "
+    "If your grep results are dominated by tests, config, or docs, refine the search to "
+    "the source directory or search for the definition (e.g. 'def name' / 'class name'). "
+    "Always finish with a clear final answer in plain text, grounded in the code you read."
 )
+
+# Bound how many times we nudge the model when it returns an empty final answer,
+# so a persistently-empty model can't loop forever.
+MAX_EMPTY_RECOVERY = 2
 
 
 @dataclass
 class Result:
-    reason: str  # completed | model_error | max_turns
+    reason: str  # completed | model_error | max_turns | no_answer
     answer: str = ""
     turns: int = 0
 
@@ -55,12 +65,17 @@ def run_turn(
 
     tools = registry.harmony_tools()
 
+    max_tokens = config.MAX_TOKENS  # may escalate if the model gets cut off
+    empty_recovery = 0  # bounds nudges on empty final answers
+
     for turn in range(1, max_turns + 1):
         prefill_ids, stop_ids = hc.render(
             history, tools=tools, reasoning=reasoning, instructions=instructions
         )
         try:
-            out_tokens, _raw = inference.complete(prefill_ids, stop_ids=stop_ids)
+            out_tokens, raw = inference.complete(
+                prefill_ids, stop_ids=stop_ids, max_tokens=max_tokens
+            )
         except inference.InferenceError as e:
             return Result("model_error", str(e), turn), history
 
@@ -77,40 +92,78 @@ def run_turn(
             f for f in fields if f["channel"] == "commentary" and f["recipient"]
         ]
 
-        # No tool calls -> the model produced its final answer.
-        if not tool_calls:
-            answer = "".join(
-                f["content"] for f in fields if f["channel"] == "final"
-            ).strip()
-            return Result("completed", answer, turn), history
-
-        # Execute tool calls serially (Harmony may emit more than one per turn).
-        for call in tool_calls:
-            recipient = call["recipient"]  # e.g. "functions.read"
-            name = recipient.split(".")[-1]
-            tool = registry.get(name)
-            if tool is None:
-                result = f"ERROR: unknown tool '{name}'"
-            else:
-                try:
-                    args = json.loads(call["content"]) if call["content"] else {}
-                except json.JSONDecodeError as e:
-                    result = f"ERROR: invalid JSON arguments: {e}"
+        # --- Tool calls: run them serially (Harmony may emit >1) and loop. ---
+        if tool_calls:
+            for call in tool_calls:
+                recipient = call["recipient"]  # e.g. "functions.read"
+                name = recipient.split(".")[-1]
+                tool = registry.get(name)
+                if tool is None:
+                    result = f"ERROR: unknown tool '{name}'"
                 else:
                     try:
-                        result = tool.run(args, sandbox)
-                    except Exception as e:  # errors are DATA, not crashes
-                        result = f"ERROR: {type(e).__name__}: {e}"
-            result = context.budget(result)
-            history.append(hc.tool_result_message(recipient, result))
-            if on_event:
-                on_event(
-                    {
-                        "role": "tool",
-                        "channel": "commentary",
-                        "recipient": recipient,
-                        "content": result,
-                    }
-                )
+                        args = json.loads(call["content"]) if call["content"] else {}
+                    except json.JSONDecodeError as e:
+                        result = f"ERROR: invalid JSON arguments: {e}"
+                    else:
+                        try:
+                            result = tool.run(args, sandbox)
+                        except Exception as e:  # errors are DATA, not crashes
+                            result = f"ERROR: {type(e).__name__}: {e}"
+                result = context.budget(result)
+                history.append(hc.tool_result_message(recipient, result))
+                if on_event:
+                    on_event(
+                        {
+                            "role": "tool",
+                            "channel": "commentary",
+                            "recipient": recipient,
+                            "content": result,
+                        }
+                    )
+            continue
+
+        # --- No tool calls: the model tried to finish this turn. ---
+        answer = "".join(
+            f["content"] for f in fields if f["channel"] == "final"
+        ).strip()
+        if answer:
+            return Result("completed", answer, turn), history
+
+        # Empty final: the model gave up early or got cut off mid-thought.
+        # Recover instead of returning nothing — bounded to avoid infinite loops.
+        if empty_recovery >= MAX_EMPTY_RECOVERY:
+            return Result("no_answer", "", turn), history
+        empty_recovery += 1
+
+        truncated = inference.hit_output_limit(raw)
+        # Drop this turn's (possibly truncated / huge) reasoning to free budget.
+        # Tool results stay in history, so what it already found is preserved.
+        history = context.drop_stale_cot(history)
+        if truncated:
+            max_tokens = min(max_tokens * 2, 8192)
+            nudge = (
+                "Your previous response was cut off before you gave an answer. "
+                "Continue: if you still need information, call a tool (read the actual "
+                "implementation file, not just its tests); otherwise write your final "
+                "answer now in plain text."
+            )
+        else:
+            nudge = (
+                "You have not produced a final answer yet. Either call a tool to gather "
+                "the implementation you need (prefer source files over tests/config), or "
+                "write your final answer now in plain text."
+            )
+        history.append(hc.user_message(nudge))
+        if on_event:
+            on_event(
+                {
+                    "role": "system",
+                    "channel": None,
+                    "recipient": None,
+                    "content": f"[recover] empty final -> nudging "
+                    f"(truncated={truncated}, max_tokens={max_tokens})",
+                }
+            )
 
     return Result("max_turns", "", max_turns), history
