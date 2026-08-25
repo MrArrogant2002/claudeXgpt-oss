@@ -1,0 +1,8 @@
+# Core agent dependencies (install on the machine that runs the model).
+#   pip install -r requirements.txt
+openai-harmony
+requests
+
+# Also required, but installed separately (system packages, not pip):
+#   - a gpt-oss GGUF + a recent llama.cpp build (llama-server)
+#   - ripgrep (`rg`) on PATH   -> used by the grep tool (falls back to pure-Python if missing)
