@@ -45,12 +45,15 @@ and **ripgrep** (`rg`) on PATH (grep falls back to pure-Python if it's missing).
 ## Step 1 — start llama.cpp (raw completion, no chat template)
 
 ```bash
-llama-server -m /path/to/gpt-oss-20b.gguf -c 8192 --port 8081 -ngl 999
+llama-server -m /path/to/gpt-oss-20b.gguf -c 32768 --port 8081 -ngl 999
 ```
 
 - **No `--jinja`** — we render Harmony ourselves and use the raw `/completion`
   endpoint; the server must not template anything.
-- `-ngl 999` = all layers on GPU (lower if VRAM is tight). `-c 8192` = context size.
+- `-ngl 999` = all layers on GPU (lower if VRAM is tight).
+- **`-c 32768`** = context window. Bigger is better for a code agent (reading files
+  + reasoning adds up fast); `-c 8192` overflows quickly on real repos. gpt-oss
+  supports up to 131072 (`-c 131072`) if you have the memory.
 
 ## Step 2 — (optional) re-run the smoke test
 
@@ -165,7 +168,8 @@ are a later tier.
 |---------|-----|
 | `cannot reach llama.cpp` | Server not running / wrong port. Start Step 1; check `AGENT_BASE_URL`. |
 | `Server returned no output token IDs` | llama.cpp too old for `return_tokens` — update it. |
-| Empty final answer | Raise `--reasoning medium/high` or `AGENT_MAX_TOKENS`. |
+| Empty final answer | The agent now auto-recovers (nudges/escalates). If it still gives up (`[no answer]`), raise `--reasoning high` or `AGENT_MAX_TOKENS`. |
+| `Context window exceeded` / 400 | Raise the server context: `llama-server -c 32768` (or higher). Also lower `AGENT_TOOL_RESULT_CAP`. The agent retries once by dropping reasoning. |
 | Grep slow / misses | Install `ripgrep` (`rg`) for speed; otherwise the Python fallback runs. |
 | Answer ignores the code | Make sure `--project` points at the right repo. |
 

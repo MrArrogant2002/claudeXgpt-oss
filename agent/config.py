@@ -28,4 +28,7 @@ MAX_TURNS = int(os.environ.get("AGENT_MAX_TURNS", "12"))
 # The project root the tools are allowed to touch. Default = current dir.
 PROJECT_ROOT = os.environ.get("AGENT_PROJECT_ROOT", os.getcwd())
 # Per-tool result cap (characters) — keeps a huge grep/read from flooding context.
-TOOL_RESULT_CAP = int(os.environ.get("AGENT_TOOL_RESULT_CAP", "30000"))
+TOOL_RESULT_CAP = int(os.environ.get("AGENT_TOOL_RESULT_CAP", "12000"))
+# Default number of lines `read` returns when no end line is given, so a bare
+# read of a 2000-line file can't blow the context window. The model can paginate.
+READ_DEFAULT_LINES = int(os.environ.get("AGENT_READ_DEFAULT_LINES", "300"))

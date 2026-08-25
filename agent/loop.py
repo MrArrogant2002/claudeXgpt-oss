@@ -67,6 +67,7 @@ def run_turn(
 
     max_tokens = config.MAX_TOKENS  # may escalate if the model gets cut off
     empty_recovery = 0  # bounds nudges on empty final answers
+    overflow_recovery = 0  # bounds context-overflow retries
 
     for turn in range(1, max_turns + 1):
         prefill_ids, stop_ids = hc.render(
@@ -76,6 +77,32 @@ def run_turn(
             out_tokens, raw = inference.complete(
                 prefill_ids, stop_ids=stop_ids, max_tokens=max_tokens
             )
+        except inference.ContextOverflowError:
+            # Prompt outgrew the server's context window. Dropping analysis is safe
+            # (no tool_use/result pairing to break) and frees the most tokens.
+            if overflow_recovery >= 1:
+                return (
+                    Result(
+                        "model_error",
+                        "Context window exceeded even after dropping reasoning. Raise the "
+                        "server context (e.g. llama-server -c 32768), lower "
+                        "AGENT_TOOL_RESULT_CAP, or ask a narrower question.",
+                        turn,
+                    ),
+                    history,
+                )
+            overflow_recovery += 1
+            history = context.drop_stale_cot(history)
+            if on_event:
+                on_event(
+                    {
+                        "role": "system",
+                        "channel": None,
+                        "recipient": None,
+                        "content": "[recover] context overflow -> dropped reasoning, retrying",
+                    }
+                )
+            continue
         except inference.InferenceError as e:
             return Result("model_error", str(e), turn), history
 

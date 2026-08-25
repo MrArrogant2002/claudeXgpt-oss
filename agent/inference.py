@@ -14,6 +14,10 @@ class InferenceError(RuntimeError):
     pass
 
 
+class ContextOverflowError(InferenceError):
+    """The rendered prompt exceeded the server's context window (llama.cpp 400)."""
+
+
 def health() -> dict:
     r = requests.get(config.HEALTH_URL, timeout=10)
     r.raise_for_status()
@@ -54,6 +58,19 @@ def complete(
             config.COMPLETION_URL, json=body, timeout=config.REQUEST_TIMEOUT
         )
         r.raise_for_status()
+    except requests.HTTPError as e:
+        status = e.response.status_code if e.response is not None else None
+        body_text = ""
+        try:
+            body_text = e.response.text if e.response is not None else ""
+        except Exception:
+            body_text = ""
+        low = body_text.lower()
+        if status == 400 and ("context" in low or "exceed" in low):
+            raise ContextOverflowError(body_text.strip() or str(e)) from e
+        raise InferenceError(
+            f"POST {config.COMPLETION_URL} failed: {status} {body_text[:300]}"
+        ) from e
     except requests.RequestException as e:
         raise InferenceError(f"POST {config.COMPLETION_URL} failed: {e}") from e
 
