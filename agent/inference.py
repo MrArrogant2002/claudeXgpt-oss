@@ -18,6 +18,22 @@ class ContextOverflowError(InferenceError):
     """The rendered prompt exceeded the server's context window (llama.cpp 400)."""
 
 
+# Cumulative token usage across every /completion call in this process.
+#   prompt      = total prompt tokens SENT (the growing conversation, re-sent each call)
+#   prompt_new  = prompt tokens actually EVALUATED (after KV-cache reuse) — the real compute
+#   output      = tokens the model GENERATED (reasoning + tool calls + final)
+USAGE = {"prompt": 0, "prompt_new": 0, "output": 0, "calls": 0}
+
+
+def usage_snapshot() -> dict:
+    return dict(USAGE)
+
+
+def reset_usage() -> None:
+    for k in USAGE:
+        USAGE[k] = 0
+
+
 def health() -> dict:
     r = requests.get(config.HEALTH_URL, timeout=10)
     r.raise_for_status()
@@ -112,4 +128,17 @@ def complete(
             + ". (If it only exposes text, we'll adapt the codec to tokenize the "
             "returned text instead.)"
         )
+
+    # Record token usage. prompt = what we sent; prompt_new = what the server
+    # actually evaluated (KV cache means most of a warm prompt isn't recomputed).
+    evaluated = data.get("tokens_evaluated")
+    if not isinstance(evaluated, int):
+        evaluated = (data.get("timings") or {}).get("prompt_n")
+    if not isinstance(evaluated, int):
+        evaluated = len(prefill_ids)
+    USAGE["prompt"] += len(prefill_ids)
+    USAGE["prompt_new"] += evaluated
+    USAGE["output"] += len(tokens)
+    USAGE["calls"] += 1
+
     return tokens, data

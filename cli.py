@@ -92,6 +92,7 @@ def main():
 
     def ask(q):
         nonlocal history
+        before = inference.usage_snapshot()
         res, history = loop.run_turn(
             q,
             history,
@@ -118,6 +119,18 @@ def main():
             )
         else:
             print(f"[stopped: {res.reason}] {res.answer}".rstrip())
+
+        after = inference.usage_snapshot()
+        d_prompt = after["prompt"] - before["prompt"]
+        d_new = after["prompt_new"] - before["prompt_new"]
+        d_out = after["output"] - before["output"]
+        d_calls = after["calls"] - before["calls"]
+        print(
+            f"[tokens] turn: {d_prompt:,} prompt ({d_new:,} newly evaluated) + {d_out:,} output "
+            f"in {res.turns} turn(s) / {d_calls} model call(s) | "
+            f"session total: {after['prompt'] + after['output']:,}",
+            file=sys.stderr,
+        )
 
     # one-shot
     if args.question:
