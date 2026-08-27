@@ -133,11 +133,15 @@ the developer instructions in `agent/loop.py`.
 |-----|---------|---------|
 | `AGENT_BASE_URL` | `http://localhost:8081` | llama.cpp server root (no `/v1`) |
 | `AGENT_REASONING` | `medium` | `low` \| `medium` \| `high` |
-| `AGENT_MAX_TOKENS` | `2048` | max tokens generated per call |
+| `AGENT_MAX_TOKENS` | `4096` | max tokens generated per call |
 | `AGENT_TEMPERATURE` | `0.7` | sampling temperature |
 | `AGENT_MAX_TURNS` | `12` | tool-loop circuit breaker |
 | `AGENT_PROJECT_ROOT` | cwd | default project root (or use `--project`) |
-| `AGENT_TOOL_RESULT_CAP` | `30000` | max chars per tool result |
+| `AGENT_TOOL_RESULT_CAP` | `12000` | max chars per tool result |
+| `AGENT_READ_DEFAULT_LINES` | `300` | lines `read` returns when no end line is given |
+| `AGENT_CONTEXT_TOKENS` | `32768` | fallback context window if `/props` auto-detect fails |
+| `AGENT_COMPACT_RATIO` | `0.75` | summarize older turns once the prompt passes this fraction of the window |
+| `AGENT_COMPACT_KEEP_RECENT` | `6` | recent messages kept verbatim when compacting |
 
 ---
 
@@ -146,19 +150,26 @@ the developer instructions in `agent/loop.py`.
 ```
 your question
   → drop stale reasoning from prior turns, add your message
+  → (if the prompt is near the context window: summarize older turns — "compaction")
   → render Harmony (system + developer[tools] + history) → token IDs
   → llama.cpp /completion (raw) → output token IDs
   → parse channels:
         analysis  = private reasoning (never shown to you)
-        commentary= tool call(s): glob / grep / read
+        commentary= tool call(s): list_dir / glob / grep / read
         final     = the answer
   → if tool calls: run them (sandboxed, budgeted), append results, loop
   → if final: print it; drop this turn's reasoning before the next question
 ```
 
 Design choices (from build-plan.md): single agent, serial tools, in-process tools
-(no MCP), fully local. Tools are read-only in v1 (glob/grep/read); editing tools
-are a later tier.
+(no MCP), fully local. Tools are **read-only** (`list_dir`, `glob`, `grep`, `read`);
+editing tools are a later tier.
+
+**Long sessions (M5):** the agent auto-detects the server's context window (via
+`/props`) and, when a prompt approaches it, summarizes older turns into a compact
+note (keeping the recent ones) so multi-question sessions don't overflow. You'll see
+a `[compact] summarized older turns …` line on stderr when it fires. The reactive
+context-overflow recovery is still the backstop.
 
 ---
 

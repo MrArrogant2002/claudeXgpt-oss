@@ -64,7 +64,9 @@ def main():
 
     sandbox = Sandbox(args.project)
     registry = default_registry()
+    n_ctx = inference.context_size() or config.CONTEXT_TOKENS
     print(f"[project] {sandbox.root}", file=sys.stderr)
+    print(f"[context] window ~{n_ctx} tokens", file=sys.stderr)
 
     def on_event(f):
         ch = f.get("channel")
@@ -82,13 +84,22 @@ def main():
                 )
         elif ch == "analysis" and args.show_reasoning:
             print(f"  [reasoning]   {f['content']}", file=sys.stderr)
+        elif f.get("role") == "system":  # [compact] / [recover] notes
+            if not args.quiet:
+                print(f"  {f['content']}", file=sys.stderr)
 
     history = []
 
     def ask(q):
         nonlocal history
         res, history = loop.run_turn(
-            q, history, registry, sandbox, reasoning=args.reasoning, on_event=on_event
+            q,
+            history,
+            registry,
+            sandbox,
+            reasoning=args.reasoning,
+            on_event=on_event,
+            context_tokens=n_ctx,
         )
         if res.reason == "completed":
             print(

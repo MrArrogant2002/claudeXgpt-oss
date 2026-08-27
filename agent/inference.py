@@ -27,6 +27,30 @@ def health() -> dict:
         return {"status": r.text.strip()}
 
 
+def context_size():
+    """Best-effort read of the server's context window (n_ctx) from /props.
+    Returns an int, or None if it can't be determined (caller falls back to config)."""
+    try:
+        r = requests.get(config.PROPS_URL, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+    except Exception:
+        return None
+    candidates = [
+        (data.get("default_generation_settings") or {}).get("n_ctx"),
+        data.get("n_ctx"),
+        (
+            (data.get("model") or {}).get("n_ctx")
+            if isinstance(data.get("model"), dict)
+            else None
+        ),
+    ]
+    for v in candidates:
+        if isinstance(v, int) and v > 0:
+            return v
+    return None
+
+
 def hit_output_limit(data) -> bool:
     """True if generation stopped because it hit n_predict (was cut off), rather
     than reaching a natural stop token. Field names vary across llama.cpp builds."""

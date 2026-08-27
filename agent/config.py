@@ -32,3 +32,13 @@ TOOL_RESULT_CAP = int(os.environ.get("AGENT_TOOL_RESULT_CAP", "12000"))
 # Default number of lines `read` returns when no end line is given, so a bare
 # read of a 2000-line file can't blow the context window. The model can paginate.
 READ_DEFAULT_LINES = int(os.environ.get("AGENT_READ_DEFAULT_LINES", "300"))
+
+# --- long-session compaction (M5) ------------------------------------------
+# Server context window in tokens. Auto-detected from /props at startup when
+# possible; this is the fallback if detection fails (matches the recommended
+# `llama-server -c 32768`).
+CONTEXT_TOKENS = int(os.environ.get("AGENT_CONTEXT_TOKENS", "32768"))
+# Compact older turns once the rendered prompt exceeds this fraction of the window.
+COMPACT_RATIO = float(os.environ.get("AGENT_COMPACT_RATIO", "0.75"))
+# How many of the most recent messages to keep verbatim when compacting.
+COMPACT_KEEP_RECENT = int(os.environ.get("AGENT_COMPACT_KEEP_RECENT", "6"))

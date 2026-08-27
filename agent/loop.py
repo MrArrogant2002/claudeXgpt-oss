@@ -18,8 +18,10 @@ from . import harmony_codec as hc
 DEFAULT_INSTRUCTIONS = (
     "You are a coding assistant working inside a code repository. "
     "Answer questions by first investigating the code with the tools, then explaining. "
-    "Funnel: use `glob` to locate files, `grep` to find where a symbol or behavior is "
-    "defined, and `read` to read the specific lines. "
+    "Funnel (cheap to expensive): `list_dir` to orient, `glob` to locate files by name, "
+    "`grep` to find where a symbol or behavior is defined, and `read` to read the specific "
+    "lines. Do the minimum needed: if the question only asks WHERE something is, a glob or "
+    "grep result is enough — do not read a file unless you actually need its contents. "
     "Prefer the actual IMPLEMENTATION/source files over test or config files when "
     "explaining how something works — read the module that DEFINES the behavior, not "
     "just its tests. Follow imports and references across files as needed. "
@@ -50,6 +52,7 @@ def run_turn(
     instructions=None,
     on_event=None,
     max_turns=None,
+    context_tokens=None,
 ):
     """Run one user turn to completion. Returns (Result, updated_history).
 
@@ -69,10 +72,33 @@ def run_turn(
     empty_recovery = 0  # bounds nudges on empty final answers
     overflow_recovery = 0  # bounds context-overflow retries
 
+    ctx = context_tokens or config.CONTEXT_TOKENS
+    compact_threshold = int(ctx * config.COMPACT_RATIO)
+
     for turn in range(1, max_turns + 1):
         prefill_ids, stop_ids = hc.render(
             history, tools=tools, reasoning=reasoning, instructions=instructions
         )
+
+        # Proactive compaction (M5): if the prompt is getting close to the window,
+        # summarize older turns and re-render. Overflow recovery below is the backstop.
+        if len(prefill_ids) > compact_threshold:
+            compacted = compact.compact_history(history)
+            if len(compacted) < len(history):
+                history = compacted
+                prefill_ids, stop_ids = hc.render(
+                    history, tools=tools, reasoning=reasoning, instructions=instructions
+                )
+                if on_event:
+                    on_event(
+                        {
+                            "role": "system",
+                            "channel": None,
+                            "recipient": None,
+                            "content": f"[compact] summarized older turns "
+                            f"({len(prefill_ids)} prompt tokens after compaction)",
+                        }
+                    )
         try:
             out_tokens, raw = inference.complete(
                 prefill_ids, stop_ids=stop_ids, max_tokens=max_tokens
