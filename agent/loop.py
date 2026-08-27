@@ -30,9 +30,10 @@ DEFAULT_INSTRUCTIONS = (
     "Always finish with a clear final answer in plain text, grounded in the code you read."
 )
 
-# Bound how many times we nudge the model when it returns an empty final answer,
-# so a persistently-empty model can't loop forever.
-MAX_EMPTY_RECOVERY = 2
+# Bound how many CONSECUTIVE empty-final turns we tolerate before giving up. The
+# counter resets whenever the model makes a tool call (real progress), so a long
+# multi-file exploration with the occasional narration turn won't trip it.
+MAX_EMPTY_RECOVERY = 3
 
 
 @dataclass
@@ -174,6 +175,26 @@ def run_turn(
                             "content": result,
                         }
                     )
+            # Made progress this turn — reset the consecutive-empty-final budget.
+            empty_recovery = 0
+            # Almost out of steps? Push the model to synthesize instead of reading more.
+            if turn >= max_turns - 1:
+                history.append(
+                    hc.user_message(
+                        "You are almost out of exploration steps. Based on what you have "
+                        "already read, write your final answer now in plain text — do NOT "
+                        "call any more tools."
+                    )
+                )
+                if on_event:
+                    on_event(
+                        {
+                            "role": "system",
+                            "channel": None,
+                            "recipient": None,
+                            "content": "[nudge] near step limit -> asking for the final answer",
+                        }
+                    )
             continue
 
         # --- No tool calls: the model tried to finish this turn. ---
@@ -200,6 +221,13 @@ def run_turn(
                 "Continue: if you still need information, call a tool (read the actual "
                 "implementation file, not just its tests); otherwise write your final "
                 "answer now in plain text."
+            )
+        elif empty_recovery >= MAX_EMPTY_RECOVERY:
+            # Last chance before giving up: force synthesis, no more exploring.
+            nudge = (
+                "STOP exploring. You have gathered enough information. Do NOT call any more "
+                "tools. Write your final answer NOW, in plain text, synthesizing what you "
+                "have already read."
             )
         else:
             nudge = (
