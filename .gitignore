@@ -24,6 +24,10 @@ build/
 pip-wheel-metadata/
 *.whl
 
+# Rust build output
+target/
+rust/target/
+
 # Local configuration and secrets
 .env
 .env.*
