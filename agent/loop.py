@@ -12,7 +12,7 @@ chain-of-thought dropped at the start of each new user turn.
 import json
 from dataclasses import dataclass
 
-from . import config, context, inference
+from . import compact, config, context, inference
 from . import harmony_codec as hc
 
 DEFAULT_INSTRUCTIONS = (
