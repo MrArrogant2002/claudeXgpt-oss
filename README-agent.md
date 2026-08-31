@@ -134,7 +134,7 @@ the developer instructions in `agent/loop.py`.
 | `AGENT_BASE_URL` | `http://localhost:8081` | llama.cpp server root (no `/v1`) |
 | `AGENT_REASONING` | `medium` | `low` \| `medium` \| `high` |
 | `AGENT_MAX_TOKENS` | `4096` | max tokens generated per call |
-| `AGENT_TEMPERATURE` | `0.7` | sampling temperature |
+| `AGENT_TEMPERATURE` | `0.3` | sampling temperature (low = more reliable tool calls + reproducible; raise for warmer prose) |
 | `AGENT_MAX_TURNS` | `12` | tool-loop circuit breaker |
 | `AGENT_PROJECT_ROOT` | cwd | default project root (or use `--project`) |
 | `AGENT_TOOL_RESULT_CAP` | `12000` | max chars per tool result |

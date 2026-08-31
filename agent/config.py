@@ -18,9 +18,12 @@ PROPS_URL = BASE_URL + "/props"
 MODEL = os.environ.get("AGENT_MODEL", "gpt-oss-20b")  # informational only
 REASONING_EFFORT = os.environ.get("AGENT_REASONING", "medium")  # low | medium | high
 MAX_TOKENS = int(os.environ.get("AGENT_MAX_TOKENS", "4096"))
-# gpt-oss's own examples use temperature=1.0; 0.7 tends to give more reliable
-# tool-call JSON for a coding agent. Tune as you like.
-TEMPERATURE = float(os.environ.get("AGENT_TEMPERATURE", "0.7"))
+# gpt-oss's own examples use temperature=1.0, but a code agent wants reliable
+# tool-call formatting and reproducible runs, so we default lower. 0.3 markedly
+# reduces malformed tool-call headers (duplicated recipients) and tool calls that
+# leak into the reasoning channel. Raise it (e.g. 0.7) if you want more varied
+# final-answer prose.
+TEMPERATURE = float(os.environ.get("AGENT_TEMPERATURE", "0.3"))
 REQUEST_TIMEOUT = float(os.environ.get("AGENT_TIMEOUT", "600"))
 MAX_TURNS = int(os.environ.get("AGENT_MAX_TURNS", "25"))
 
