@@ -11,7 +11,7 @@ can pipe just the answer:  python cli.py "..." 2>/dev/null
 import argparse
 import sys
 
-from agent import config, inference, loop
+from agent import config, harmony_codec as hc, inference, loop
 from agent.sandbox import Sandbox
 from agent.tools import default_registry
 
@@ -125,12 +125,15 @@ def main():
         d_new = after["prompt_new"] - before["prompt_new"]
         d_out = after["output"] - before["output"]
         d_calls = after["calls"] - before["calls"]
-        print(
+        line = (
             f"[tokens] turn: {d_prompt:,} prompt ({d_new:,} newly evaluated) + {d_out:,} output "
             f"in {res.turns} turn(s) / {d_calls} model call(s) | "
-            f"session total: {after['prompt'] + after['output']:,}",
-            file=sys.stderr,
+            f"session total: {after['prompt'] + after['output']:,}"
         )
+        salvaged = hc.salvage_count()
+        if salvaged:
+            line += f" | salvaged {salvaged} malformed header(s)"
+        print(line, file=sys.stderr)
 
     # one-shot
     if args.question:

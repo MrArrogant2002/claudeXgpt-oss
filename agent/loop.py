@@ -133,7 +133,44 @@ def run_turn(
         except inference.InferenceError as e:
             return Result("model_error", str(e), turn), history
 
-        msgs = hc.parse(out_tokens)
+        salvage_before = hc.salvage_count()
+        try:
+            msgs = hc.parse(out_tokens)
+        except hc.ParseError:
+            # Output was unparseable even leniently. Treat like an empty final:
+            # drop it and nudge for a clean response, bounded by MAX_EMPTY_RECOVERY.
+            if empty_recovery >= MAX_EMPTY_RECOVERY:
+                return Result("no_answer", "", turn), history
+            empty_recovery += 1
+            history = context.drop_stale_cot(history)
+            history.append(
+                hc.user_message(
+                    "Your previous response could not be parsed. Respond again: either "
+                    "call a single tool with valid JSON arguments, or write your final "
+                    "answer in plain text."
+                )
+            )
+            if on_event:
+                on_event(
+                    {
+                        "role": "system",
+                        "channel": None,
+                        "recipient": None,
+                        "content": "[recover] unparseable output -> nudging, retrying",
+                    }
+                )
+            continue
+        # gpt-oss sometimes emits a malformed tool-call header (e.g. a duplicated
+        # recipient) that the strict parser rejects; hc.parse salvaged it here.
+        if hc.salvage_count() > salvage_before and on_event:
+            on_event(
+                {
+                    "role": "system",
+                    "channel": None,
+                    "recipient": None,
+                    "content": "[recover] malformed tool-call header salvaged",
+                }
+            )
         for m in msgs:  # keep this turn's assistant messages (incl. analysis)
             history.append(m)
 
