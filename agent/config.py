@@ -22,7 +22,7 @@ MAX_TOKENS = int(os.environ.get("AGENT_MAX_TOKENS", "4096"))
 # tool-call JSON for a coding agent. Tune as you like.
 TEMPERATURE = float(os.environ.get("AGENT_TEMPERATURE", "0.7"))
 REQUEST_TIMEOUT = float(os.environ.get("AGENT_TIMEOUT", "600"))
-MAX_TURNS = int(os.environ.get("AGENT_MAX_TURNS", "12"))
+MAX_TURNS = int(os.environ.get("AGENT_MAX_TURNS", "25"))
 
 # --- tools / sandbox --------------------------------------------------------
 # The project root the tools are allowed to touch. Default = current dir.
