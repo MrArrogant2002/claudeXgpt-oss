@@ -45,6 +45,11 @@ def main():
         action="store_true",
         help="enable the bash tool (runs shell commands; off by default)",
     )
+    ap.add_argument(
+        "--no-stream",
+        action="store_true",
+        help="disable token-by-token streaming (falls back to whole-turn output)",
+    )
     args = ap.parse_args()
 
     if args.allow_exec:
@@ -72,6 +77,7 @@ def main():
         reasoning=args.reasoning,
         show_reasoning=args.show_reasoning,
         quiet=args.quiet,
+        streaming=not args.no_stream,
     ).run()
 
 

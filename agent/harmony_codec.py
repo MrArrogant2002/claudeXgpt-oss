@@ -17,6 +17,7 @@ from openai_harmony import (
     Role,
     SystemContent,
     ReasoningEffort,
+    StreamableParser,
     ToolDescription,
     load_harmony_encoding,
 )
@@ -150,6 +151,21 @@ def parse(output_token_ids):
             SALVAGE_COUNT += 1
             return salvaged
         raise ParseError(str(e)) from e
+
+
+class StreamDecoder:
+    """Incremental Harmony decoder for streaming completions. Push output token
+    IDs one at a time; each push returns (current_channel, text_delta) so a UI can
+    render the answer as it types and show reasoning live. The authoritative parse
+    at the end of the turn still uses parse() on the full token list (which keeps
+    the malformed-header salvage), so this is purely for live display."""
+
+    def __init__(self):
+        self._sp = StreamableParser(_ENC, role=Role.ASSISTANT)
+
+    def push(self, token_id):
+        self._sp.process(token_id)
+        return self._sp.current_channel, (self._sp.last_content_delta or "")
 
 
 # --- robust field access on a parsed Message --------------------------------

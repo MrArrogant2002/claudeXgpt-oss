@@ -131,6 +131,24 @@ def _push_final_if_near_limit(history, turn, max_turns, on_event):
         )
 
 
+def _stream_completion(prefill_ids, max_tokens, cancel, on_delta):
+    """Consume a streaming completion, emitting live channel deltas via on_delta.
+    Returns (out_token_ids, final_raw_dict). The full token list is still parsed
+    authoritatively by the caller (with salvage); deltas here are for display."""
+    dec = hc.StreamDecoder()
+    out = []
+    gen = inference.complete_stream(prefill_ids, max_tokens=max_tokens, cancel=cancel)
+    while True:
+        try:
+            tok = next(gen)
+        except StopIteration as e:
+            return out, (e.value or {})
+        out.append(tok)
+        channel, delta = dec.push(tok)
+        if delta and on_delta:
+            on_delta(channel, delta)
+
+
 @dataclass
 class Result:
     reason: str  # completed | model_error | max_turns | no_answer | cancelled
@@ -150,6 +168,8 @@ def run_turn(
     max_turns=None,
     context_tokens=None,
     cancel=None,
+    stream=False,
+    on_delta=None,
 ):
     """Run one user turn to completion. Returns (Result, updated_history).
 
@@ -157,6 +177,10 @@ def run_turn(
     result, so a UI can show progress. `fields_dict` has role/channel/recipient/content.
     `cancel` is an optional threading.Event; when set, the loop stops at the next
     step boundary and returns Result("cancelled", ...) (a UI can wire it to Esc/Ctrl-C).
+    When `stream=True`, completions stream token-by-token and `on_delta(channel, text)`
+    is called with live text deltas (the answer types out; reasoning shows live), and
+    `cancel` aborts generation mid-stream. Falls back to non-streaming if the server
+    doesn't support it.
     """
     max_turns = max_turns or config.MAX_TURNS
     instructions = instructions or DEFAULT_INSTRUCTIONS
@@ -203,9 +227,14 @@ def run_turn(
                         }
                     )
         try:
-            out_tokens, raw = inference.complete(
-                prefill_ids, stop_ids=stop_ids, max_tokens=max_tokens
-            )
+            if stream:
+                out_tokens, raw = _stream_completion(
+                    prefill_ids, max_tokens, cancel, on_delta
+                )
+            else:
+                out_tokens, raw = inference.complete(
+                    prefill_ids, stop_ids=stop_ids, max_tokens=max_tokens
+                )
         except inference.ContextOverflowError:
             # Prompt outgrew the server's context window. Dropping analysis is safe
             # (no tool_use/result pairing to break) and frees the most tokens.
@@ -233,7 +262,25 @@ def run_turn(
                 )
             continue
         except inference.InferenceError as e:
+            if stream:
+                # Streaming failed (e.g. server lacks stream+return_tokens). Fall
+                # back to non-streaming for the rest of the turn and retry this step.
+                stream = False
+                if on_event:
+                    on_event(
+                        {
+                            "role": "system",
+                            "channel": None,
+                            "recipient": None,
+                            "content": "[stream] unavailable -> non-streaming",
+                        }
+                    )
+                continue
             return Result("model_error", str(e), turn), history
+
+        # Cancelled mid-stream (Esc/Ctrl-C): discard the partial output and stop.
+        if cancel is not None and cancel.is_set():
+            return Result("cancelled", "", turn), history
 
         salvage_before = hc.salvage_count()
         try:

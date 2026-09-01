@@ -91,11 +91,13 @@ python cli.py --project /path/to/repo --show-reasoning "..."
 ```bash
 python tui.py --project /path/to/repo
 ```
-Runs stdlib-only; `pip install -r requirements-ui.txt` (prompt_toolkit) adds input
-**history** (↑/↓) and **`/`-command autocomplete**. Slash commands: `/help`,
-`/reasoning low|medium|high`, `/show-reasoning`, `/exec on|off`, `/tokens`, `/clear`,
-`/exit`. `Ctrl-C` interrupts a running turn; `--allow-exec` enables the `bash` tool.
-Use `cli.py` (above) when you want to pipe just the answer; `tui.py` for interactive use.
+The answer **streams token-by-token** as the model generates it (`--no-stream` to
+disable; it auto-falls-back if your llama.cpp build lacks streaming). Runs stdlib-only;
+`pip install -r requirements-ui.txt` (prompt_toolkit) adds input **history** (↑/↓) and
+**`/`-command autocomplete**. Slash commands: `/help`, `/reasoning low|medium|high`,
+`/show-reasoning`, `/exec on|off`, `/tokens`, `/clear`, `/exit`. **`Ctrl-C` interrupts a
+running turn instantly** (aborts generation mid-stream); `--allow-exec` enables the
+`bash` tool. Use `cli.py` (above) to pipe just the answer; `tui.py` for interactive use.
 
 ### What you'll see
 

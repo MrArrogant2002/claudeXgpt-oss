@@ -45,7 +45,16 @@ class _Spinner:
 
 class App:
     def __init__(
-        self, sandbox, registry, n_ctx, *, reasoning, show_reasoning, quiet, stream=None
+        self,
+        sandbox,
+        registry,
+        n_ctx,
+        *,
+        reasoning,
+        show_reasoning,
+        quiet,
+        stream=None,
+        streaming=True,
     ):
         self.sandbox = sandbox
         self.registry = registry
@@ -53,6 +62,7 @@ class App:
         self.reasoning = reasoning
         self.show_reasoning = show_reasoning
         self.quiet = quiet
+        self.streaming = streaming  # token-by-token output (P3)
         self.history = []
         self.out = stream or sys.stdout
         # Rich input (history + autocomplete) when prompt_toolkit is present AND
@@ -103,12 +113,47 @@ class App:
                 self._p(render.system_note(f.get("content")))
         # channel == "final" is ignored here; the answer prints from the Result.
 
+    def _handle_item(self, f, spin, state):
+        """Render one queued item: a streaming delta (types out live) or a full
+        event (tool block, system note). Mutates `state` to track open live lines."""
+        if f.get("_delta"):
+            ch, text = f.get("channel"), f.get("content") or ""
+            if not text:
+                return
+            if ch == "final":
+                if not state["answering"]:
+                    spin.clear()
+                    self._p()  # blank line before the answer
+                    state["answering"] = True
+                    state["streamed_final"] = True
+                self.out.write(paint(text, "fg"))
+                self.out.flush()
+            elif ch == "analysis" and self.show_reasoning:
+                if not state["thinking"]:
+                    spin.clear()
+                    self.out.write("  " + paint(f"{GLYPH['think']} ", "think", italic=True))
+                    state["thinking"] = True
+                self.out.write(paint(text, "think", dim=True))
+                self.out.flush()
+            return
+        # A full event: close any open streamed line first.
+        spin.clear()
+        if state["answering"] or state["thinking"]:
+            self._p()
+            state["answering"] = state["thinking"] = False
+        if self.streaming and f.get("channel") == "analysis":
+            return  # already streamed live via deltas
+        self._render_event(f)
+
     # --- one turn -----------------------------------------------------------
     def ask(self, q):
         before = inference.usage_snapshot()
         events_q = queue.Queue()
         result = {}
         cancel = threading.Event()
+
+        def on_delta(channel, text):
+            events_q.put({"_delta": True, "channel": channel, "content": text})
 
         def worker():
             try:
@@ -121,6 +166,8 @@ class App:
                     on_event=events_q.put,
                     context_tokens=self.n_ctx,
                     cancel=cancel,
+                    stream=self.streaming,
+                    on_delta=on_delta,
                 )
                 result["res"], result["hist"] = res, hist
             except Exception as e:  # never let the worker kill the REPL
@@ -130,22 +177,25 @@ class App:
         t.start()
 
         spin = _Spinner(self.out)
+        state = {"answering": False, "thinking": False, "streamed_final": False}
         interrupted = False
         try:
             while t.is_alive() or not events_q.empty():
                 try:
                     f = events_q.get(timeout=0.1)
                 except queue.Empty:
-                    if t.is_alive():
+                    if t.is_alive() and not (state["answering"] or state["thinking"]):
                         spin.tick()
                     continue
-                spin.clear()
-                self._render_event(f)
+                self._handle_item(f, spin, state)
         except KeyboardInterrupt:
             interrupted = True
             cancel.set()
             spin.clear()
-            self._p(render.system_note("interrupting… (finishing the current step)"))
+            if state["answering"] or state["thinking"]:
+                self._p()
+                state["answering"] = state["thinking"] = False
+            self._p(render.system_note("interrupting…"))
         finally:
             try:
                 t.join()
@@ -154,15 +204,17 @@ class App:
             spin.clear()
             try:
                 while True:
-                    self._render_event(events_q.get_nowait())
+                    self._handle_item(events_q.get_nowait(), spin, state)
             except queue.Empty:
                 pass
+            if state["answering"] or state["thinking"]:
+                self._p()  # close any open streamed line
 
         self.history = result.get("hist", self.history)
-        self._print_outcome(result, interrupted)
+        self._print_outcome(result, interrupted, state["streamed_final"])
         self._print_status(before)
 
-    def _print_outcome(self, result, interrupted):
+    def _print_outcome(self, result, interrupted, streamed=False):
         if "err" in result:
             self._p(render.error_line(f"error: {result['err']}"))
             return
@@ -171,6 +223,8 @@ class App:
             self._p(render.system_note("cancelled." if interrupted else "no result."))
             return
         if res.reason == "completed":
+            if streamed:
+                return  # the answer already typed out live during the turn
             self._p()
             self._p(render.answer(res.answer or "(empty answer)"))
         elif res.reason == "cancelled":
