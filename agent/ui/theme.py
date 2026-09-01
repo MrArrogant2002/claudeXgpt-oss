@@ -59,17 +59,17 @@ def refresh():
     GLYPH = _build_glyphs()
     SPINNER = _build_spinner()
 
-# --- palette (r, g, b) — Teal / Violet on Slate -----------------------------
+# --- palette (r, g, b) — Amber / Gold on Graphite ---------------------------
 PALETTE = {
-    "accent": (45, 212, 191),   # teal 400  — user prompt, spinner, highlights
-    "tool": (56, 189, 248),     # sky 400   — tool-call bullet + name
-    "second": (167, 139, 250),  # violet 400— secondary accents
-    "think": (148, 163, 184),   # slate 400 — reasoning
-    "ok": (74, 222, 128),       # green 400 — exit 0 / success
-    "err": (251, 113, 133),     # rose 400  — errors / exit != 0 / refused
-    "warn": (251, 191, 36),     # amber 400 — warnings, exec badge, near-limit ctx
-    "dim": (100, 116, 139),     # slate 500 — metadata, borders, summaries
-    "fg": (226, 232, 240),      # slate 200 — primary text
+    "accent": (245, 185, 66),   # amber/gold — user prompt, spinner, ctx bar
+    "tool": (96, 165, 250),     # blue 400   — tool-call bullet + name (cool contrast)
+    "second": (192, 132, 252),  # purple 400 — secondary accents
+    "think": (156, 163, 175),   # gray 400   — reasoning
+    "ok": (74, 222, 128),       # green 400  — exit 0 / success
+    "err": (248, 113, 113),     # red 400    — errors / exit != 0 / refused
+    "warn": (251, 146, 60),     # orange 400 — warnings, exec badge, near-limit ctx
+    "dim": (107, 114, 128),     # gray 500   — metadata, borders, summaries
+    "fg": (229, 231, 235),      # gray 200   — primary text
 }
 
 RESET = "\x1b[0m"

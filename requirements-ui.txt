@@ -1,0 +1,5 @@
+# Optional TUI extras for tui.py — richer input: command history, slash-command
+# autocomplete, and a bottom toolbar. Pure-Python and fully offline at runtime
+# (only the install fetches it). Without this, tui.py still runs with a basic
+# stdlib prompt; the core agent (cli.py) never needs it.
+prompt_toolkit>=3.0

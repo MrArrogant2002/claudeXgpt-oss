@@ -6,6 +6,7 @@ thread; the agent turn runs on a background thread so the UI stays responsive an
 Ctrl-C can request cancellation.
 """
 
+import os
 import queue
 import sys
 import threading
@@ -15,6 +16,7 @@ from .. import config, inference, loop
 from .. import harmony_codec as hc
 from ..tools import default_registry
 from . import render
+from . import session as ptk_session
 from .theme import CLEAR_LINE, CR, GLYPH, SPINNER, paint
 
 
@@ -53,10 +55,35 @@ class App:
         self.quiet = quiet
         self.history = []
         self.out = stream or sys.stdout
+        # Rich input (history + autocomplete) when prompt_toolkit is present AND
+        # we're on a real terminal; otherwise fall back to stdlib input().
+        self.session = None
+        try:
+            is_tty = self.out.isatty()
+        except Exception:
+            is_tty = False
+        if ptk_session.HAS_PTK and is_tty:
+            self.session = ptk_session.build_session(self._history_path())
 
     def _p(self, s=""):
         self.out.write(s + "\n")
         self.out.flush()
+
+    def _history_path(self):
+        return os.path.join(os.path.expanduser("~"), ".agent_tui_history")
+
+    def _toolbar(self):
+        used = inference.usage_snapshot().get("last_prompt", 0)
+        exec_state = "on" if config.ALLOW_EXEC else "off"
+        return (
+            f"  reasoning:{self.reasoning} · exec:{exec_state} · "
+            f"ctx {used}/{self.n_ctx} · ^C interrupt · /help"
+        )
+
+    def _read_line(self):
+        if self.session is not None:
+            return ptk_session.read(self.session, self._toolbar).strip()
+        return input(paint(f"\n{GLYPH['prompt']} ", "accent", bold=True)).strip()
 
     # --- event rendering ----------------------------------------------------
     def _render_event(self, f):
@@ -248,7 +275,7 @@ class App:
         )
         while True:
             try:
-                line = input(paint(f"\n{GLYPH['prompt']} ", "accent", bold=True)).strip()
+                line = self._read_line()
             except EOFError:
                 self._p()
                 break
