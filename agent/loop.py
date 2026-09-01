@@ -90,6 +90,18 @@ DEFAULT_INSTRUCTIONS = (
     "Always finish with a clear final answer in plain text, grounded in the code you read."
 )
 
+# Appended to the instructions only when the `bash` tool is available (execution
+# enabled), so we never tell the model to use a tool it doesn't have.
+EXEC_INSTRUCTIONS = (
+    "\n\nYou also have a `bash` tool that runs shell commands in the project root. "
+    "When the task is to build, reproduce, find, or fix errors, USE IT: compile / "
+    "lint / type-check / test the code (e.g. `python -m py_compile file.py`, "
+    "`pytest -x -q`, `ruff check .`, `tsc --noEmit`, `cargo check`), then read the "
+    "failing command's stderr and `read` the cited file:line to ground your "
+    "explanation. A non-zero exit code means failure. Do not install packages, push, "
+    "or use the network — run checks only."
+)
+
 # Bound how many CONSECUTIVE empty-final turns we tolerate before giving up. The
 # counter resets whenever the model makes a tool call (real progress), so a long
 # multi-file exploration with the occasional narration turn won't trip it.
@@ -145,6 +157,8 @@ def run_turn(
     """
     max_turns = max_turns or config.MAX_TURNS
     instructions = instructions or DEFAULT_INSTRUCTIONS
+    if registry.get("bash"):  # execution enabled -> teach the model to use it
+        instructions = instructions + EXEC_INSTRUCTIONS
 
     # New user turn: drop stale chain-of-thought from prior turns, then add input.
     history = context.drop_stale_cot(history)

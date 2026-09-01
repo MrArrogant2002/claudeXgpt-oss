@@ -36,6 +36,16 @@ TOOL_RESULT_CAP = int(os.environ.get("AGENT_TOOL_RESULT_CAP", "12000"))
 # read of a 2000-line file can't blow the context window. The model can paginate.
 READ_DEFAULT_LINES = int(os.environ.get("AGENT_READ_DEFAULT_LINES", "300"))
 
+# --- code execution (opt-in, off by default) --------------------------------
+# The `bash` tool runs arbitrary shell commands with YOUR user's privileges so
+# the agent can compile / lint / test the code and find real errors. It is a
+# real risk: there is no container here, so a hostile repo's build script or
+# conftest.py runs as you. Disabled unless turned on (CLI --allow-exec, or
+# AGENT_ALLOW_EXEC=1). Only enable it for code you are willing to run.
+ALLOW_EXEC = os.environ.get("AGENT_ALLOW_EXEC", "") not in ("", "0", "false", "False")
+EXEC_TIMEOUT = int(os.environ.get("AGENT_EXEC_TIMEOUT", "60"))  # default per command (s)
+EXEC_TIMEOUT_MAX = int(os.environ.get("AGENT_EXEC_TIMEOUT_MAX", "300"))  # hard cap (s)
+
 # --- long-session compaction (M5) ------------------------------------------
 # Server context window in tokens. Auto-detected from /props at startup when
 # possible; this is the fallback if detection fails (matches the recommended

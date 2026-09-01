@@ -47,7 +47,16 @@ def main():
         help="print the analysis channel (debug)",
     )
     ap.add_argument("--quiet", action="store_true", help="hide the tool-call trace")
+    ap.add_argument(
+        "--allow-exec",
+        action="store_true",
+        help="enable the `bash` tool (runs shell commands to compile/lint/test; "
+        "OFF by default — only enable for code you trust to run on this machine)",
+    )
     args = ap.parse_args()
+
+    if args.allow_exec:
+        config.ALLOW_EXEC = True
 
     # preflight: is the server reachable?
     try:
@@ -63,10 +72,16 @@ def main():
         sys.exit(1)
 
     sandbox = Sandbox(args.project)
-    registry = default_registry()
+    registry = default_registry()  # includes `bash` iff config.ALLOW_EXEC
     n_ctx = inference.context_size() or config.CONTEXT_TOKENS
     print(f"[project] {sandbox.root}", file=sys.stderr)
     print(f"[context] window ~{n_ctx} tokens", file=sys.stderr)
+    if config.ALLOW_EXEC:
+        print(
+            "[exec] ⚠  command execution ENABLED — the `bash` tool can run arbitrary "
+            "shell commands (no container). Only use this on code you trust.",
+            file=sys.stderr,
+        )
 
     def on_event(f):
         ch = f.get("channel")

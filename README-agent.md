@@ -126,6 +126,7 @@ the developer instructions in `agent/loop.py`.
 | `--reasoning low\|medium\|high` | `medium` | Reasoning effort (higher = better + slower) |
 | `--show-reasoning` | off | Print the analysis channel to stderr (debug) |
 | `--quiet` | off | Hide the tool-call trace |
+| `--allow-exec` | off | Enable the `bash` tool (runs shell commands to compile/lint/test). **Off by default**; only enable for code you trust to run on this machine. |
 
 ## Configuration (env vars, override without editing code)
 
@@ -136,6 +137,9 @@ the developer instructions in `agent/loop.py`.
 | `AGENT_MAX_TOKENS` | `4096` | max tokens generated per call |
 | `AGENT_TEMPERATURE` | `0.3` | sampling temperature (low = more reliable tool calls + reproducible; raise for warmer prose) |
 | `AGENT_MAX_TURNS` | `12` | tool-loop circuit breaker |
+| `AGENT_ALLOW_EXEC` | off | `1`/`true` enables the `bash` tool without `--allow-exec` |
+| `AGENT_EXEC_TIMEOUT` | `60` | default seconds before a `bash` command is killed |
+| `AGENT_EXEC_TIMEOUT_MAX` | `300` | hard cap the model's per-command `timeout` can't exceed |
 | `AGENT_PROJECT_ROOT` | cwd | default project root (or use `--project`) |
 | `AGENT_TOOL_RESULT_CAP` | `12000` | max chars per tool result |
 | `AGENT_READ_DEFAULT_LINES` | `300` | lines `read` returns when no end line is given |
@@ -162,8 +166,28 @@ your question
 ```
 
 Design choices (from build-plan.md): single agent, serial tools, in-process tools
-(no MCP), fully local. Tools are **read-only** (`list_dir`, `glob`, `grep`, `read`);
-editing tools are a later tier.
+(no MCP), fully local. The navigation tools are **read-only** (`list_dir`, `glob`,
+`grep`, `read`); editing tools are a later tier.
+
+### Running code to find errors (`--allow-exec`)
+
+By default the agent can only *read* code. Pass `--allow-exec` to add a **`bash`**
+tool so it can actually **compile / lint / type-check / test** the project and find
+real errors — the model runs a command, reads the stderr, and `read`s the cited
+`file:line` to explain or fix it.
+
+```bash
+python cli.py --project /path/to/repo --allow-exec "compile the project and tell me what's broken"
+```
+
+⚠ **This runs arbitrary shell commands with your user's privileges, with no
+container.** A repo you don't know can carry a hostile `conftest.py`, `Makefile`, or
+build script that runs as you. Guardrails: it's **off unless you pass the flag**, a
+deny-list blocks catastrophic commands (`rm -rf`, `sudo`, `git push`, `pip install`,
+fork bombs, disk writes…), every command is echoed to stderr, and each run has a hard
+timeout (`AGENT_EXEC_TIMEOUT`, capped by `AGENT_EXEC_TIMEOUT_MAX`). These are
+guardrails, **not a sandbox** — only enable it for code you trust, and prefer running
+the whole agent inside a container.
 
 **Long sessions (M5):** the agent auto-detects the server's context window (via
 `/props`) and, when a prompt approaches it, summarizes older turns into a compact
