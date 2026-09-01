@@ -22,7 +22,9 @@ class ContextOverflowError(InferenceError):
 #   prompt      = total prompt tokens SENT (the growing conversation, re-sent each call)
 #   prompt_new  = prompt tokens actually EVALUATED (after KV-cache reuse) — the real compute
 #   output      = tokens the model GENERATED (reasoning + tool calls + final)
-USAGE = {"prompt": 0, "prompt_new": 0, "output": 0, "calls": 0}
+# `last_prompt` = size of the MOST RECENT rendered prompt (not cumulative) — a
+# good proxy for how full the context window currently is, for a UI meter.
+USAGE = {"prompt": 0, "prompt_new": 0, "output": 0, "calls": 0, "last_prompt": 0}
 
 
 def usage_snapshot() -> dict:
@@ -140,5 +142,6 @@ def complete(
     USAGE["prompt_new"] += evaluated
     USAGE["output"] += len(tokens)
     USAGE["calls"] += 1
+    USAGE["last_prompt"] = len(prefill_ids)
 
     return tokens, data

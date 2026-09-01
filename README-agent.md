@@ -87,6 +87,15 @@ python cli.py --project /path/to/repo "..." 2>/dev/null
 python cli.py --project /path/to/repo --show-reasoning "..."
 ```
 
+**Claude Code–style TUI** (interactive, colored, live tool trace + status bar):
+```bash
+python tui.py --project /path/to/repo
+```
+Stdlib-only (no extra `pip` installs). Slash commands: `/help`, `/reasoning
+low|medium|high`, `/show-reasoning`, `/exec on|off`, `/tokens`, `/clear`, `/exit`.
+`Ctrl-C` interrupts a running turn; `--allow-exec` enables the `bash` tool. Use
+`cli.py` (above) when you want to pipe just the answer; `tui.py` for interactive use.
+
 ### What you'll see
 
 - The **final answer** prints to **stdout**.

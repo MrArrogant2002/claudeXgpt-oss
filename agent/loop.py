@@ -133,7 +133,7 @@ def _push_final_if_near_limit(history, turn, max_turns, on_event):
 
 @dataclass
 class Result:
-    reason: str  # completed | model_error | max_turns | no_answer
+    reason: str  # completed | model_error | max_turns | no_answer | cancelled
     answer: str = ""
     turns: int = 0
 
@@ -149,11 +149,14 @@ def run_turn(
     on_event=None,
     max_turns=None,
     context_tokens=None,
+    cancel=None,
 ):
     """Run one user turn to completion. Returns (Result, updated_history).
 
     `on_event(fields_dict)` is called for each parsed message and each tool
     result, so a UI can show progress. `fields_dict` has role/channel/recipient/content.
+    `cancel` is an optional threading.Event; when set, the loop stops at the next
+    step boundary and returns Result("cancelled", ...) (a UI can wire it to Esc/Ctrl-C).
     """
     max_turns = max_turns or config.MAX_TURNS
     instructions = instructions or DEFAULT_INSTRUCTIONS
@@ -174,6 +177,8 @@ def run_turn(
     compact_threshold = int(ctx * config.COMPACT_RATIO)
 
     for turn in range(1, max_turns + 1):
+        if cancel is not None and cancel.is_set():
+            return Result("cancelled", "", turn - 1), history
         prefill_ids, stop_ids = hc.render(
             history, tools=tools, reasoning=reasoning, instructions=instructions
         )
