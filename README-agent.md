@@ -215,7 +215,6 @@ context-overflow recovery is still the backstop.
 |---------|-----|
 | `cannot reach llama.cpp` | Server not running / wrong port. Start Step 1; check `AGENT_BASE_URL`. |
 | `Server returned no output token IDs` | llama.cpp too old for `return_tokens` — update it. |
-| `error downloading or loading vocab file` | The Harmony tokenizer's BPE vocab isn't cached and there's no internet. It's now **vendored** in `vendor/tiktoken-cache/` and loaded offline automatically — make sure that folder came through `git pull` (or set `TIKTOKEN_RS_CACHE_DIR` to a dir holding the vocab). |
 | Empty final answer | The agent now auto-recovers (nudges/escalates). If it still gives up (`[no answer]`), raise `--reasoning high` or `AGENT_MAX_TOKENS`. |
 | `Context window exceeded` / 400 | Raise the server context: `llama-server -c 32768` (or higher). Also lower `AGENT_TOOL_RESULT_CAP`. The agent retries once by dropping reasoning. |
 | Grep slow / misses | Install `ripgrep` (`rg`) for speed; otherwise the Python fallback runs. |
