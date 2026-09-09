@@ -5,6 +5,7 @@ agent never touches raw special tokens. The model only ever sees token IDs we
 produced here, and we turn its output token IDs back into channel messages here.
 """
 
+import os
 import re
 
 from openai_harmony import (
@@ -39,7 +40,20 @@ SALVAGE_COUNT = 0
 def salvage_count() -> int:
     return SALVAGE_COUNT
 
-# Loaded once. First call downloads the o200k_harmony vocab, then it's cached.
+# Fully-offline tokenizer: openai_harmony (tiktoken-rs) otherwise DOWNLOADS the
+# ~3.6MB o200k BPE vocab on first use and caches it in a temp dir — which breaks
+# on an offline box once that temp cache is cleared. We vendor the vocab in the
+# repo (vendor/tiktoken-cache/<sha1-of-url>) and point the cache dir at it, so the
+# tokenizer loads locally and never needs the network. A user-set env var wins.
+_VENDORED_CACHE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "vendor",
+    "tiktoken-cache",
+)
+if os.path.isdir(_VENDORED_CACHE):
+    os.environ.setdefault("TIKTOKEN_RS_CACHE_DIR", _VENDORED_CACHE)
+
+# Loaded once — from the vendored cache above (no download).
 _ENC = load_harmony_encoding(HarmonyEncodingName.HARMONY_GPT_OSS)
 
 _EFFORT = {
