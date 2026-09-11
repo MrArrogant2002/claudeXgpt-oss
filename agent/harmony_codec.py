@@ -5,7 +5,10 @@ agent never touches raw special tokens. The model only ever sees token IDs we
 produced here, and we turn its output token IDs back into channel messages here.
 """
 
+import hashlib
+import os
 import re
+import shutil
 
 from openai_harmony import (
     Author,
@@ -39,8 +42,67 @@ SALVAGE_COUNT = 0
 def salvage_count() -> int:
     return SALVAGE_COUNT
 
-# Loaded once. First call downloads the o200k_harmony vocab, then it's cached.
-_ENC = load_harmony_encoding(HarmonyEncodingName.HARMONY_GPT_OSS)
+# --- offline Harmony vocab --------------------------------------------------
+# openai_harmony (via its Rust tiktoken engine) needs the o200k_base BPE vocab
+# (~3.6MB) to map text <-> token IDs. By default it DOWNLOADS that file on first
+# use and caches it in a temp dir — which fails on an offline box and disappears
+# on reboot. Instead we keep the vocab IN-REPO under vendor/tiktoken/ and point
+# tiktoken's cache at it, so the tokenizer loads locally and never hits the network.
+# Download the file once (see vendor/tiktoken/README.md); no internet after that.
+_VOCAB_URL = "https://openaipublic.blob.core.windows.net/encodings/o200k_base.tiktoken"
+_VOCAB_SHA256 = "446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d"
+_VOCAB_SIZE = 3613922
+_VOCAB_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "vendor", "tiktoken"
+)
+_VOCAB_FILE = os.path.join(_VOCAB_DIR, "o200k_base.tiktoken")  # human-friendly name
+_CACHE_NAME = hashlib.sha1(_VOCAB_URL.encode()).hexdigest()  # name tiktoken-rs looks for
+_CACHE_FILE = os.path.join(_VOCAB_DIR, _CACHE_NAME)
+
+
+def _prepare_offline_vocab():
+    """Point tiktoken-rs at the in-repo vocab so no download is needed. Accepts the
+    file under its natural name (o200k_base.tiktoken) and materializes the hashed
+    cache name the engine expects. Returns None on success, else a short reason so
+    the caller can show clear guidance instead of tiktoken's opaque download error.
+    Respects a user-set TIKTOKEN_RS_CACHE_DIR."""
+    if os.environ.get("TIKTOKEN_RS_CACHE_DIR"):
+        return None  # user manages their own cache — don't override it
+
+    src = _CACHE_FILE if os.path.exists(_CACHE_FILE) else _VOCAB_FILE
+    if not os.path.exists(src):
+        return "vocab file not found"
+
+    # Verify integrity: a wrong or CRLF-mangled file fails tiktoken's own hash check
+    # with an opaque error, so catch it here with an actionable one.
+    digest = hashlib.sha256(open(src, "rb").read()).hexdigest()
+    if digest != _VOCAB_SHA256:
+        return f"vocab file is corrupted (sha256 {digest[:12]}… != expected)"
+
+    if not os.path.exists(_CACHE_FILE):  # give the engine the hashed name it wants
+        shutil.copyfile(_VOCAB_FILE, _CACHE_FILE)
+    os.environ["TIKTOKEN_RS_CACHE_DIR"] = _VOCAB_DIR
+    return None
+
+
+def _load_encoding():
+    problem = _prepare_offline_vocab()
+    try:
+        return load_harmony_encoding(HarmonyEncodingName.HARMONY_GPT_OSS)
+    except HarmonyError as e:
+        raise RuntimeError(
+            f"Harmony tokenizer vocab unavailable ({problem or 'offline, not cached'}).\n\n"
+            "This project runs fully offline — download the ~3.6MB BPE vocab ONCE:\n"
+            f"  1. Download : {_VOCAB_URL}\n"
+            f"  2. Save as  : {_VOCAB_FILE}\n"
+            f"               (expected size {_VOCAB_SIZE} bytes, sha256 {_VOCAB_SHA256})\n"
+            "  3. Re-run — it loads locally from then on, no internet needed.\n"
+            "  See vendor/tiktoken/README.md for one-line download commands."
+        ) from e
+
+
+# Loaded once, from the in-repo vocab (no download).
+_ENC = _load_encoding()
 
 _EFFORT = {
     "low": ReasoningEffort.LOW,

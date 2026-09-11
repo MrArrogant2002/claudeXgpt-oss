@@ -1,0 +1,4 @@
+# The tokenizer vocab is a byte-exact data file — never apply EOL/text conversion
+# (Git's autocrlf would corrupt it and the tokenizer's SHA-256 check would reject it).
+*.tiktoken binary
+vendor/tiktoken/** binary

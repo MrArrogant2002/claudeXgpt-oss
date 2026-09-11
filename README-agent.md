@@ -40,6 +40,17 @@ pip install -r requirements.txt   # openai-harmony, requests
 Also needed (not pip): a **gpt-oss GGUF** + recent **llama.cpp** (`llama-server`),
 and **ripgrep** (`rg`) on PATH (grep falls back to pure-Python if it's missing).
 
+**One-time (for fully-offline tokenizing):** download the ~3.6 MB Harmony BPE vocab
+into `vendor/tiktoken/` once — see [`vendor/tiktoken/README.md`](vendor/tiktoken/README.md):
+
+```bash
+curl -L -o vendor/tiktoken/o200k_base.tiktoken \
+  https://openaipublic.blob.core.windows.net/encodings/o200k_base.tiktoken
+```
+
+After this the agent tokenizes locally and never needs the internet. (Skip it only if
+the box already has internet on first run — the library would otherwise download it.)
+
 ---
 
 ## Step 1 — start llama.cpp (raw completion, no chat template)
@@ -215,6 +226,7 @@ context-overflow recovery is still the backstop.
 |---------|-----|
 | `cannot reach llama.cpp` | Server not running / wrong port. Start Step 1; check `AGENT_BASE_URL`. |
 | `Server returned no output token IDs` | llama.cpp too old for `return_tokens` — update it. |
+| `Harmony tokenizer vocab unavailable` | Download the BPE vocab into `vendor/tiktoken/` once (the error prints the URL + path; see [`vendor/tiktoken/README.md`](vendor/tiktoken/README.md)). If it says **corrupted**, re-download as binary — don't let an editor/Git rewrite line endings. |
 | Empty final answer | The agent now auto-recovers (nudges/escalates). If it still gives up (`[no answer]`), raise `--reasoning high` or `AGENT_MAX_TOKENS`. |
 | `Context window exceeded` / 400 | Raise the server context: `llama-server -c 32768` (or higher). Also lower `AGENT_TOOL_RESULT_CAP`. The agent retries once by dropping reasoning. |
 | Grep slow / misses | Install `ripgrep` (`rg`) for speed; otherwise the Python fallback runs. |
