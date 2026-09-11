@@ -1,82 +1,94 @@
 <mxfile host="65bd71144e">
     <diagram id="p1-context" name="1 · Context (C4 L1)">
-        <mxGraphModel dx="368" dy="750" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="826" math="0" shadow="0">
+        <mxGraphModel dx="1682" dy="1500" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="826" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
                 <mxCell id="p1-title" value="C4 Level 1 — System Context" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontStyle=1;fontSize=18;fontColor=#233;" parent="1" vertex="1">
-                    <mxGeometry x="60" y="40" width="520" height="30" as="geometry"/>
+                    <mxGeometry x="40" y="40" width="600" height="30" as="geometry"/>
                 </mxCell>
-                <mxCell id="p1-sub" value="The whole project as one box, and the people/systems it talks to. Everything runs locally." style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=12;fontColor=#667;" parent="1" vertex="1">
-                    <mxGeometry x="60" y="70" width="700" height="24" as="geometry"/>
+                <mxCell id="p1-sub" value="The whole project as one box, and the people / systems it talks to. Everything runs locally — no cloud, no network at runtime." style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=12;fontColor=#667;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="74" width="800" height="24" as="geometry"/>
                 </mxCell>
-                <mxCell id="p1-dev" value="&lt;b&gt;Developer&lt;/b&gt;&lt;br&gt;&lt;br&gt;Asks questions about an&lt;br&gt;unfamiliar codebase" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#08427B;strokeColor=#052E56;fontColor=#ffffff;fontSize=12;" parent="1" vertex="1">
-                    <mxGeometry x="90" y="330" width="190" height="100" as="geometry"/>
+                <mxCell id="p1-dev" value="&lt;b&gt;Developer&lt;/b&gt;&lt;br&gt;&lt;br&gt;Asks questions about an&lt;br&gt;unfamiliar codebase" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="70" y="380" width="210" height="110" as="geometry"/>
                 </mxCell>
-                <mxCell id="p1-sys" value="&lt;b&gt;Local Code Agent&lt;/b&gt;&lt;br&gt;&lt;br&gt;gpt-oss brain, fully local. Navigates a repo&lt;br&gt;(glob → grep → read), answers grounded&lt;br&gt;questions, and can compile/run code." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1168BD;strokeColor=#0B4884;fontColor=#ffffff;fontSize=12;" parent="1" vertex="1">
-                    <mxGeometry x="470" y="320" width="300" height="120" as="geometry"/>
+                <mxCell id="p1-sys" value="&lt;b&gt;Local Code Agent&lt;/b&gt;&lt;br&gt;&lt;br&gt;gpt-oss brain, fully local. Navigates a repo&lt;br&gt;(glob → grep → read), resolves symbols&lt;br&gt;semantically (LSP), answers grounded&lt;br&gt;questions, and can compile / run code." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="440" y="360" width="340" height="150" as="geometry"/>
                 </mxCell>
-                <mxCell id="p1-llama" value="&lt;b&gt;llama.cpp server&lt;/b&gt;&lt;br&gt;&lt;br&gt;gpt-oss-20b (MXFP4)&lt;br&gt;local inference runtime" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8A33D;strokeColor=#B07D22;fontColor=#1b1300;fontSize=12;" parent="1" vertex="1">
-                    <mxGeometry x="950" y="150" width="210" height="110" as="geometry"/>
+                <mxCell id="p1-llama" value="&lt;b&gt;llama.cpp server&lt;/b&gt;&lt;br&gt;&lt;br&gt;gpt-oss-20b (MXFP4)&lt;br&gt;local inference runtime" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="930" y="150" width="210" height="100" as="geometry"/>
                 </mxCell>
-                <mxCell id="p1-repo" value="&lt;b&gt;Target repository&lt;/b&gt;&lt;br&gt;source files on disk" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#8C8C8C;strokeColor=#5F5F5F;fontColor=#ffffff;fontSize=12;" parent="1" vertex="1">
-                    <mxGeometry x="960" y="330" width="190" height="100" as="geometry"/>
+                <mxCell id="p1-repo" value="&lt;b&gt;Target repository&lt;/b&gt;&lt;br&gt;source files on disk" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="930" y="300" width="210" height="100" as="geometry"/>
                 </mxCell>
-                <mxCell id="p1-shell" value="&lt;b&gt;OS shell&lt;/b&gt;&lt;br&gt;compile / lint / test&lt;br&gt;(opt-in)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8C8C8C;strokeColor=#5F5F5F;fontColor=#ffffff;fontSize=12;" parent="1" vertex="1">
-                    <mxGeometry x="960" y="500" width="190" height="90" as="geometry"/>
+                <mxCell id="p1-shell" value="&lt;b&gt;OS shell&lt;/b&gt;&lt;br&gt;compile / lint / test&lt;br&gt;(opt-in)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="930" y="450" width="210" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1-lsp" value="&lt;b&gt;Language servers&lt;/b&gt;&lt;br&gt;pyright / gopls / …&lt;br&gt;(optional, if installed)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="930" y="590" width="210" height="90" as="geometry"/>
                 </mxCell>
                 <mxCell id="p1-e1" value="asks questions,&lt;br&gt;reads answers&lt;br&gt;[CLI / TUI]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=10;fontColor=#333;strokeColor=#4d4d4d;" parent="1" source="p1-dev" target="p1-sys" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="p1-e2" value="Harmony token IDs&lt;br&gt;[HTTP/JSON + SSE stream]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=10;fontColor=#333;strokeColor=#4d4d4d;" parent="1" source="p1-sys" target="p1-llama" edge="1">
+                <mxCell id="p1-e2" value="Harmony token IDs&lt;br&gt;[HTTP/JSON + SSE]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=10;fontColor=#333;strokeColor=#4d4d4d;" parent="1" source="p1-sys" target="p1-llama" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="p1-e3" value="read &amp;amp; navigate&lt;br&gt;[sandboxed]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=10;fontColor=#333;strokeColor=#4d4d4d;" parent="1" source="p1-sys" target="p1-repo" edge="1">
+                <mxCell id="p1-e3" value="read + navigate&lt;br&gt;[sandboxed]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=10;fontColor=#333;strokeColor=#4d4d4d;" parent="1" source="p1-sys" target="p1-repo" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
                 <mxCell id="p1-e4" value="run commands&lt;br&gt;[--allow-exec]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=10;fontColor=#333;strokeColor=#4d4d4d;dashed=1;" parent="1" source="p1-sys" target="p1-shell" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1-e5" value="resolve symbols&lt;br&gt;[LSP over stdio]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=10;fontColor=#333;strokeColor=#4d4d4d;dashed=1;" parent="1" source="p1-sys" target="p1-lsp" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
             </root>
         </mxGraphModel>
     </diagram>
     <diagram id="p2-containers" name="2 · Containers (C4 L2)">
-        <mxGraphModel dx="368" dy="750" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="826" math="0" shadow="0">
+        <mxGraphModel dx="1529" dy="1364" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="826" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
                 <mxCell id="p2-title" value="C4 Level 2 — Containers" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontStyle=1;fontSize=18;fontColor=#233;" parent="1" vertex="1">
-                    <mxGeometry x="60" y="30" width="520" height="30" as="geometry"/>
+                    <mxGeometry x="40" y="30" width="600" height="30" as="geometry"/>
                 </mxCell>
                 <mxCell id="p2-bnd" value="Local Code Agent  [software system]" style="rounded=0;whiteSpace=wrap;html=1;dashed=1;fillColor=none;strokeColor=#7A7A7A;fontColor=#5A5A5A;verticalAlign=top;fontStyle=2;fontSize=13;align=left;spacingLeft=10;spacingTop=8;" parent="1" vertex="1">
-                    <mxGeometry x="40" y="90" width="740" height="620" as="geometry"/>
+                    <mxGeometry x="40" y="90" width="770" height="650" as="geometry"/>
                 </mxCell>
-                <mxCell id="p2-cli" value="&lt;b&gt;CLI&lt;/b&gt;  cli.py&lt;br&gt;&lt;br&gt;one-shot / pipe-friendly&lt;br&gt;answer→stdout, trace→stderr&lt;br&gt;[Python]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1168BD;strokeColor=#0B4884;fontColor=#ffffff;fontSize=12;" parent="1" vertex="1">
-                    <mxGeometry x="80" y="150" width="210" height="100" as="geometry"/>
+                <mxCell id="p2-cli" value="&lt;b&gt;CLI&lt;/b&gt;  cli.py&lt;br&gt;&lt;br&gt;one-shot / pipe-friendly&lt;br&gt;answer → stdout, trace → stderr&lt;br&gt;[Python]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="150" width="330" height="90" as="geometry"/>
                 </mxCell>
-                <mxCell id="p2-tui" value="&lt;b&gt;TUI&lt;/b&gt;  tui.py + agent/ui/*&lt;br&gt;&lt;br&gt;Claude Code–style terminal UI&lt;br&gt;streaming, history, /-autocomplete&lt;br&gt;[Python]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1168BD;strokeColor=#0B4884;fontColor=#ffffff;fontSize=12;" parent="1" vertex="1">
-                    <mxGeometry x="330" y="150" width="230" height="100" as="geometry"/>
+                <mxCell id="p2-tui" value="&lt;b&gt;TUI&lt;/b&gt;  tui.py + agent/ui/*&lt;br&gt;&lt;br&gt;Claude Code–style terminal UI&lt;br&gt;streaming, history, /-autocomplete&lt;br&gt;[Python]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="440" y="150" width="330" height="90" as="geometry"/>
                 </mxCell>
-                <mxCell id="p2-core" value="&lt;b&gt;Agent Core&lt;/b&gt;  agent/&lt;br&gt;&lt;br&gt;loop · harmony_codec · inference&lt;br&gt;context · compact · config&lt;br&gt;[Python, in-process]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1168BD;strokeColor=#0B4884;fontColor=#ffffff;fontSize=12;" parent="1" vertex="1">
-                    <mxGeometry x="110" y="320" width="450" height="130" as="geometry"/>
+                <mxCell id="p2-core" value="&lt;b&gt;Agent Core&lt;/b&gt;  agent/&lt;br&gt;&lt;br&gt;loop · harmony_codec · inference&lt;br&gt;context · compact · config&lt;br&gt;[Python, in-process]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="280" width="690" height="120" as="geometry"/>
                 </mxCell>
-                <mxCell id="p2-tools" value="&lt;b&gt;Tools + Sandbox&lt;/b&gt;  agent/tools/*, sandbox.py&lt;br&gt;&lt;br&gt;list_dir · glob · grep · read · bash&lt;br&gt;path containment, per-result budgeting&lt;br&gt;[Python, in-process]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1168BD;strokeColor=#0B4884;fontColor=#ffffff;fontSize=12;" parent="1" vertex="1">
-                    <mxGeometry x="110" y="500" width="450" height="120" as="geometry"/>
+                <mxCell id="p2-tools" value="&lt;b&gt;Tools + Sandbox&lt;/b&gt;  agent/tools/*, agent/lsp/*, sandbox.py&lt;br&gt;&lt;br&gt;list_dir · glob · grep · read · lsp · bash&lt;br&gt;path containment, per-result budgeting&lt;br&gt;[Python, in-process]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="440" width="690" height="140" as="geometry"/>
                 </mxCell>
-                <mxCell id="p2-llama" value="&lt;b&gt;llama-server&lt;/b&gt;&lt;br&gt;raw /completion (SSE),&lt;br&gt;/health, /props" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8A33D;strokeColor=#B07D22;fontColor=#1b1300;fontSize=12;" parent="1" vertex="1">
-                    <mxGeometry x="880" y="150" width="240" height="90" as="geometry"/>
+                <mxCell id="p2-vocab" value="&lt;b&gt;Vendored Harmony vocab&lt;/b&gt;  vendor/tiktoken/o200k_base.tiktoken — offline BPE, sha256-verified" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="80" y="620" width="690" height="70" as="geometry"/>
                 </mxCell>
-                <mxCell id="p2-gguf" value="&lt;b&gt;gpt-oss-20b GGUF&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8A33D;strokeColor=#B07D22;fontColor=#1b1300;fontSize=12;" parent="1" vertex="1">
-                    <mxGeometry x="880" y="280" width="240" height="60" as="geometry"/>
+                <mxCell id="p2-llama" value="&lt;b&gt;llama-server&lt;/b&gt;&lt;br&gt;raw /completion (SSE),&lt;br&gt;/health, /props" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="880" y="150" width="250" height="90" as="geometry"/>
                 </mxCell>
-                <mxCell id="p2-rg" value="&lt;b&gt;ripgrep (rg)&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8C8C8C;strokeColor=#5F5F5F;fontColor=#ffffff;fontSize=12;" parent="1" vertex="1">
-                    <mxGeometry x="880" y="380" width="240" height="60" as="geometry"/>
+                <mxCell id="p2-gguf" value="&lt;b&gt;gpt-oss-20b GGUF&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="880" y="270" width="250" height="60" as="geometry"/>
                 </mxCell>
-                <mxCell id="p2-fs" value="&lt;b&gt;Target repo filesystem&lt;/b&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#8C8C8C;strokeColor=#5F5F5F;fontColor=#ffffff;fontSize=12;" parent="1" vertex="1">
-                    <mxGeometry x="880" y="470" width="240" height="80" as="geometry"/>
+                <mxCell id="p2-rg" value="&lt;b&gt;ripgrep (rg)&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="880" y="360" width="250" height="56" as="geometry"/>
                 </mxCell>
-                <mxCell id="p2-shell" value="&lt;b&gt;OS shell / subprocess&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8C8C8C;strokeColor=#5F5F5F;fontColor=#ffffff;fontSize=12;" parent="1" vertex="1">
-                    <mxGeometry x="880" y="590" width="240" height="60" as="geometry"/>
+                <mxCell id="p2-fs" value="&lt;b&gt;Target repo filesystem&lt;/b&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="880" y="446" width="250" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2-ls" value="&lt;b&gt;Language servers&lt;/b&gt;&lt;br&gt;pyright / gopls / … (if installed)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="880" y="556" width="250" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2-shell" value="&lt;b&gt;OS shell / subprocess&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="880" y="656" width="250" height="56" as="geometry"/>
                 </mxCell>
                 <mxCell id="p2-e1" value="in-process" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=10;fontColor=#333;strokeColor=#4d4d4d;" parent="1" source="p2-cli" target="p2-core" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
@@ -85,6 +97,9 @@
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
                 <mxCell id="p2-e3" value="dispatch tool calls&lt;br&gt;(serial)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=10;fontColor=#333;strokeColor=#4d4d4d;" parent="1" source="p2-core" target="p2-tools" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2-evocab" value="loads vocab&lt;br&gt;(offline)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=10;fontColor=#333;strokeColor=#4d4d4d;dashed=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" parent="1" source="p2-core" target="p2-vocab" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
                 <mxCell id="p2-e4" value="token IDs; SSE stream&lt;br&gt;[HTTP/JSON]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=10;fontColor=#333;strokeColor=#4d4d4d;" parent="1" source="p2-core" target="p2-llama" edge="1">
@@ -99,6 +114,9 @@
                 <mxCell id="p2-e7" value="read files [sandbox]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=10;fontColor=#333;strokeColor=#4d4d4d;" parent="1" source="p2-tools" target="p2-fs" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
+                <mxCell id="p2-els" value="lsp [stdio, if installed]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=10;fontColor=#333;strokeColor=#4d4d4d;dashed=1;" parent="1" source="p2-tools" target="p2-ls" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
                 <mxCell id="p2-e8" value="bash [opt-in]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=10;fontColor=#333;strokeColor=#4d4d4d;dashed=1;" parent="1" source="p2-tools" target="p2-shell" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
@@ -106,98 +124,116 @@
         </mxGraphModel>
     </diagram>
     <diagram id="p3-components" name="3 · Components (C4 L3)">
-        <mxGraphModel dx="368" dy="750" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
+        <mxGraphModel dx="1201" dy="1071" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1440" pageHeight="900" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
                 <mxCell id="p3-title" value="C4 Level 3 — Components (full technical)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontStyle=1;fontSize=18;fontColor=#233;" parent="1" vertex="1">
-                    <mxGeometry x="40" y="20" width="640" height="30" as="geometry"/>
+                    <mxGeometry x="40" y="24" width="700" height="30" as="geometry"/>
                 </mxCell>
                 <mxCell id="p3-gFE" value="Front-ends" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;fillColor=#F5F7FA;strokeColor=#AEB8C2;fontColor=#334;verticalAlign=top;fontStyle=1;fontSize=13;align=center;spacingTop=6;" parent="1" vertex="1">
-                    <mxGeometry x="40" y="70" width="220" height="220" as="geometry"/>
+                    <mxGeometry x="40" y="80" width="210" height="200" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-cli" value="&lt;b&gt;cli.py&lt;/b&gt;&lt;br&gt;one-shot / REPL, preflight" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;strokeColor=#2E6295;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="60" y="115" width="180" height="60" as="geometry"/>
+                <mxCell id="p3-cli" value="&lt;b&gt;cli.py&lt;/b&gt;&lt;br&gt;one-shot / REPL, preflight" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="120" width="170" height="56" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-tui" value="&lt;b&gt;tui.py&lt;/b&gt;&lt;br&gt;entry point, flags, VT/UTF-8" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;strokeColor=#2E6295;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="60" y="200" width="180" height="60" as="geometry"/>
+                <mxCell id="p3-tui" value="&lt;b&gt;tui.py&lt;/b&gt;&lt;br&gt;entry point, flags, VT/UTF-8" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="60" y="196" width="170" height="56" as="geometry"/>
                 </mxCell>
                 <mxCell id="p3-gUI" value="UI  (agent/ui)" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;fillColor=#F5F7FA;strokeColor=#AEB8C2;fontColor=#334;verticalAlign=top;fontStyle=1;fontSize=13;align=center;spacingTop=6;" parent="1" vertex="1">
-                    <mxGeometry x="300" y="70" width="230" height="380" as="geometry"/>
+                    <mxGeometry x="280" y="80" width="230" height="380" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-app" value="&lt;b&gt;app.py&lt;/b&gt;&lt;br&gt;REPL · worker thread · spinner&lt;br&gt;stream render · slash commands" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;strokeColor=#2E6295;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="320" y="115" width="190" height="72" as="geometry"/>
+                <mxCell id="p3-app" value="&lt;b&gt;app.py&lt;/b&gt;&lt;br&gt;REPL · worker thread · spinner&lt;br&gt;stream render · slash commands" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="120" width="190" height="76" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-render" value="&lt;b&gt;render.py&lt;/b&gt;&lt;br&gt;block renderers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;strokeColor=#2E6295;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="320" y="205" width="190" height="54" as="geometry"/>
+                <mxCell id="p3-render" value="&lt;b&gt;render.py&lt;/b&gt;&lt;br&gt;block renderers" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="212" width="190" height="50" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-theme" value="&lt;b&gt;theme.py&lt;/b&gt;&lt;br&gt;palette (amber/graphite) · glyphs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;strokeColor=#2E6295;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="320" y="277" width="190" height="54" as="geometry"/>
+                <mxCell id="p3-theme" value="&lt;b&gt;theme.py&lt;/b&gt;&lt;br&gt;palette (amber/graphite) · glyphs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="278" width="190" height="50" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-session" value="&lt;b&gt;session.py&lt;/b&gt;&lt;br&gt;prompt_toolkit input&lt;br&gt;(history, autocomplete)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;strokeColor=#2E6295;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="320" y="349" width="190" height="66" as="geometry"/>
+                <mxCell id="p3-session" value="&lt;b&gt;session.py&lt;/b&gt;&lt;br&gt;prompt_toolkit input&lt;br&gt;(history, autocomplete)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="344" width="190" height="66" as="geometry"/>
                 </mxCell>
                 <mxCell id="p3-gCore" value="Core  (agent)" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;fillColor=#F5F7FA;strokeColor=#AEB8C2;fontColor=#334;verticalAlign=top;fontStyle=1;fontSize=13;align=center;spacingTop=6;" parent="1" vertex="1">
-                    <mxGeometry x="570" y="70" width="250" height="530" as="geometry"/>
+                    <mxGeometry x="540" y="80" width="260" height="540" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-loop" value="&lt;b&gt;loop.py&lt;/b&gt;  run_turn&lt;br&gt;orchestrate · recover · compaction&lt;br&gt;leaked-call &amp;amp; header salvage · cancel" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2E6DA4;strokeColor=#1F4E79;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="590" y="112" width="210" height="80" as="geometry"/>
+                <mxCell id="p3-loop" value="&lt;b&gt;loop.py&lt;/b&gt;  run_turn&lt;br&gt;orchestrate · recover · compaction&lt;br&gt;leaked-call + header salvage · cancel" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="560" y="120" width="220" height="84" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-codec" value="&lt;b&gt;harmony_codec.py&lt;/b&gt;&lt;br&gt;render · parse (+salvage)&lt;br&gt;StreamDecoder" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;strokeColor=#2E6295;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="590" y="208" width="210" height="66" as="geometry"/>
+                <mxCell id="p3-codec" value="&lt;b&gt;harmony_codec.py&lt;/b&gt;&lt;br&gt;render · parse (+salvage)&lt;br&gt;StreamDecoder · offline vocab" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="560" y="220" width="220" height="66" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-inf" value="&lt;b&gt;inference.py&lt;/b&gt;&lt;br&gt;complete · complete_stream (SSE)&lt;br&gt;usage · health · context_size" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;strokeColor=#2E6295;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="590" y="290" width="210" height="66" as="geometry"/>
+                <mxCell id="p3-inf" value="&lt;b&gt;inference.py&lt;/b&gt;&lt;br&gt;complete · complete_stream (SSE)&lt;br&gt;usage · health · context_size" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="560" y="300" width="220" height="66" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-ctx" value="&lt;b&gt;context.py&lt;/b&gt;&lt;br&gt;budget · drop_stale_cot" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;strokeColor=#2E6295;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="590" y="372" width="210" height="48" as="geometry"/>
+                <mxCell id="p3-ctx" value="&lt;b&gt;context.py&lt;/b&gt;&lt;br&gt;budget · drop_stale_cot" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="560" y="380" width="220" height="50" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-compact" value="&lt;b&gt;compact.py&lt;/b&gt;&lt;br&gt;summarize older turns" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;strokeColor=#2E6295;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="590" y="436" width="210" height="48" as="geometry"/>
+                <mxCell id="p3-compact" value="&lt;b&gt;compact.py&lt;/b&gt;&lt;br&gt;summarize older turns" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="560" y="444" width="220" height="50" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-config" value="&lt;b&gt;config.py&lt;/b&gt;&lt;br&gt;settings / env overrides" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;strokeColor=#2E6295;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="590" y="500" width="210" height="48" as="geometry"/>
+                <mxCell id="p3-config" value="&lt;b&gt;config.py&lt;/b&gt;&lt;br&gt;settings / env overrides" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="560" y="508" width="220" height="50" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-gTools" value="Tools  (agent/tools) + sandbox" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;fillColor=#F5F7FA;strokeColor=#AEB8C2;fontColor=#334;verticalAlign=top;fontStyle=1;fontSize=13;align=center;spacingTop=6;" parent="1" vertex="1">
-                    <mxGeometry x="860" y="70" width="240" height="530" as="geometry"/>
+                <mxCell id="p3-gTools" value="Tools + Sandbox  (agent/tools)" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;fillColor=#F5F7FA;strokeColor=#AEB8C2;fontColor=#334;verticalAlign=top;fontStyle=1;fontSize=13;align=center;spacingTop=6;" parent="1" vertex="1">
+                    <mxGeometry x="830" y="80" width="260" height="540" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-base" value="&lt;b&gt;base.py&lt;/b&gt;  Tool / Registry" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#438DD5;strokeColor=#2E6295;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="880" y="112" width="200" height="50" as="geometry"/>
+                <mxCell id="p3-base" value="&lt;b&gt;base.py&lt;/b&gt;  Tool / Registry" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="850" y="120" width="220" height="48" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-listdir" value="&lt;b&gt;list_dir_tool&lt;/b&gt;  orient" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FA8D3;strokeColor=#2E6295;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="880" y="178" width="200" height="44" as="geometry"/>
+                <mxCell id="p3-listdir" value="&lt;b&gt;list_dir_tool&lt;/b&gt;  orient" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="850" y="182" width="220" height="44" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-glob" value="&lt;b&gt;glob_tool&lt;/b&gt;  locate files" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FA8D3;strokeColor=#2E6295;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="880" y="234" width="200" height="44" as="geometry"/>
+                <mxCell id="p3-glob" value="&lt;b&gt;glob_tool&lt;/b&gt;  locate files" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="850" y="240" width="220" height="44" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-grep" value="&lt;b&gt;grep_tool&lt;/b&gt;  rg + py fallback" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FA8D3;strokeColor=#2E6295;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="880" y="290" width="200" height="44" as="geometry"/>
+                <mxCell id="p3-grep" value="&lt;b&gt;grep_tool&lt;/b&gt;  rg + py fallback" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="850" y="298" width="220" height="44" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-read" value="&lt;b&gt;read_tool&lt;/b&gt;  paging, aliases" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5FA8D3;strokeColor=#2E6295;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="880" y="346" width="200" height="44" as="geometry"/>
+                <mxCell id="p3-read" value="&lt;b&gt;read_tool&lt;/b&gt;  paging, aliases" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="850" y="356" width="220" height="44" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-bash" value="&lt;b&gt;bash_tool&lt;/b&gt;  opt-in, deny-list, timeout" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8A33D;strokeColor=#B07D22;fontColor=#1b1300;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="880" y="402" width="200" height="48" as="geometry"/>
+                <mxCell id="p3-lsp" value="&lt;b&gt;lsp_tool&lt;/b&gt;  defs/refs/types (if server)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="850" y="414" width="220" height="48" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-sandbox" value="&lt;b&gt;sandbox.py&lt;/b&gt;&lt;br&gt;path containment (blocks escapes)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2E6DA4;strokeColor=#1F4E79;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="880" y="470" width="200" height="56" as="geometry"/>
+                <mxCell id="p3-bash" value="&lt;b&gt;bash_tool&lt;/b&gt;  opt-in, deny-list, timeout" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="850" y="476" width="220" height="48" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-fs" value="&lt;b&gt;Target repo filesystem&lt;/b&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#8C8C8C;strokeColor=#5F5F5F;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="40" y="650" width="200" height="70" as="geometry"/>
+                <mxCell id="p3-sandbox" value="&lt;b&gt;sandbox.py&lt;/b&gt;&lt;br&gt;path containment (blocks escapes)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="850" y="538" width="220" height="56" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-extllama" value="&lt;b&gt;llama-server + gpt-oss&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E8A33D;strokeColor=#B07D22;fontColor=#1b1300;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="320" y="655" width="200" height="55" as="geometry"/>
+                <mxCell id="p3-gLSP" value="Code intelligence  (agent/lsp)" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;fillColor=#F5F7FA;strokeColor=#AEB8C2;fontColor=#334;verticalAlign=top;fontStyle=1;fontSize=13;align=center;spacingTop=6;" parent="1" vertex="1">
+                    <mxGeometry x="1130" y="80" width="240" height="240" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-extharmony" value="&lt;b&gt;openai-harmony&lt;/b&gt;  (library)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8C8C8C;strokeColor=#5F5F5F;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="570" y="655" width="200" height="55" as="geometry"/>
+                <mxCell id="p3-lspclient" value="&lt;b&gt;client.py&lt;/b&gt;&lt;br&gt;LSP client over stdio&lt;br&gt;(JSON-RPC 2.0, child proc)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="1150" y="120" width="200" height="76" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-extrg" value="&lt;b&gt;ripgrep&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8C8C8C;strokeColor=#5F5F5F;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="800" y="655" width="120" height="55" as="geometry"/>
+                <mxCell id="p3-lspservers" value="&lt;b&gt;servers.py&lt;/b&gt;&lt;br&gt;detect language + resolve&lt;br&gt;installed server command" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="1150" y="212" width="200" height="76" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-extshell" value="&lt;b&gt;OS shell&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#8C8C8C;strokeColor=#5F5F5F;fontColor=#ffffff;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="960" y="655" width="120" height="55" as="geometry"/>
+                <mxCell id="p3-fs" value="&lt;b&gt;Target repo filesystem&lt;/b&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="760" width="200" height="70" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-x1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=10;strokeColor=#4d4d4d;" parent="1" source="p3-cli" target="p3-loop" edge="1">
+                <mxCell id="p3-extllama" value="&lt;b&gt;llama-server + gpt-oss&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="280" y="766" width="210" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3-extharmony" value="&lt;b&gt;openai-harmony&lt;/b&gt;  (library)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="520" y="766" width="190" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3-extvocab" value="&lt;b&gt;vendored vocab&lt;/b&gt;&lt;br&gt;vendor/tiktoken (offline)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="740" y="760" width="190" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3-extrg" value="&lt;b&gt;ripgrep&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="960" y="766" width="120" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3-extls" value="&lt;b&gt;language servers&lt;/b&gt;&lt;br&gt;pyright / gopls / …" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="1110" y="766" width="170" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3-extshell" value="&lt;b&gt;OS shell&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="1300" y="766" width="90" height="56" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3-x1" value="run_turn" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#4d4d4d;" parent="1" source="p3-cli" target="p3-loop" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
                 <mxCell id="p3-x2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=10;strokeColor=#4d4d4d;" parent="1" source="p3-tui" target="p3-app" edge="1">
@@ -230,85 +266,97 @@
                 <mxCell id="p3-x11" value="dispatch" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#4d4d4d;" parent="1" source="p3-loop" target="p3-base" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-x12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#4d4d4d;" parent="1" source="p3-compact" target="p3-inf" edge="1">
+                <mxCell id="p3-x12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#4d4d4d;dashed=1;" parent="1" source="p3-compact" target="p3-inf" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-x13" value="HTTP/JSON + SSE" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#B07D22;" parent="1" source="p3-inf" target="p3-extllama" edge="1">
+                <mxCell id="p3-x13" value="HTTP/JSON + SSE" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#b85450;" parent="1" source="p3-inf" target="p3-extllama" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
                 <mxCell id="p3-x14" value="tokens ⇄ Harmony" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#4d4d4d;" parent="1" source="p3-codec" target="p3-extharmony" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-x15" value="rg --json" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#4d4d4d;" parent="1" source="p3-grep" target="p3-extrg" edge="1">
+                <mxCell id="p3-x15" value="loads BPE (offline)" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#4d4d4d;dashed=1;" parent="1" source="p3-codec" target="p3-extvocab" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-x16" value="resolve paths" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#4d4d4d;" parent="1" source="p3-read" target="p3-sandbox" edge="1">
+                <mxCell id="p3-x16" value="rg --json" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#4d4d4d;" parent="1" source="p3-grep" target="p3-extrg" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-x17" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#4d4d4d;" parent="1" source="p3-glob" target="p3-sandbox" edge="1">
+                <mxCell id="p3-x17" value="defs / refs / types" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#4d4d4d;" parent="1" source="p3-lsp" target="p3-lspclient" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-x18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#4d4d4d;" parent="1" source="p3-listdir" target="p3-sandbox" edge="1">
+                <mxCell id="p3-x18" value="resolve server" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#4d4d4d;dashed=1;" parent="1" source="p3-lsp" target="p3-lspservers" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-x19" value="reads" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#4d4d4d;" parent="1" source="p3-sandbox" target="p3-fs" edge="1">
+                <mxCell id="p3-x19" value="spawn + stdio&lt;br&gt;[JSON-RPC]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#b85450;" parent="1" source="p3-lspclient" target="p3-extls" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="p3-x20" value="subprocess" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#B07D22;dashed=1;" parent="1" source="p3-bash" target="p3-extshell" edge="1">
+                <mxCell id="p3-x20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#4d4d4d;" parent="1" source="p3-listdir" target="p3-sandbox" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3-x21" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#4d4d4d;" parent="1" source="p3-glob" target="p3-sandbox" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3-x22" value="resolve paths" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#4d4d4d;" parent="1" source="p3-read" target="p3-sandbox" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3-x23" value="reads" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#4d4d4d;" parent="1" source="p3-sandbox" target="p3-fs" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3-x24" value="subprocess [opt-in]" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#b85450;dashed=1;" parent="1" source="p3-bash" target="p3-extshell" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
             </root>
         </mxGraphModel>
     </diagram>
     <diagram id="p4-flow" name="4 · Runtime data flow">
-        <mxGraphModel dx="368" dy="750" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="900" math="0" shadow="0">
+        <mxGraphModel dx="841" dy="750" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="900" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
                 <mxCell id="p4-title" value="Runtime — one user turn  (loop.run_turn)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontStyle=1;fontSize=18;fontColor=#233;" parent="1" vertex="1">
-                    <mxGeometry x="40" y="20" width="640" height="30" as="geometry"/>
+                    <mxGeometry x="40" y="24" width="640" height="30" as="geometry"/>
                 </mxCell>
                 <mxCell id="f1" value="① User question" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F0FA;strokeColor=#4d7ea8;fontColor=#12324a;fontSize=12;" parent="1" vertex="1">
-                    <mxGeometry x="120" y="70" width="230" height="44" as="geometry"/>
+                    <mxGeometry x="180" y="80" width="260" height="44" as="geometry"/>
                 </mxCell>
                 <mxCell id="f2" value="② drop_stale_cot&lt;br&gt;append user message" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F0FA;strokeColor=#4d7ea8;fontColor=#12324a;fontSize=12;" parent="1" vertex="1">
-                    <mxGeometry x="120" y="140" width="230" height="50" as="geometry"/>
+                    <mxGeometry x="180" y="150" width="260" height="50" as="geometry"/>
                 </mxCell>
                 <mxCell id="f3" value="③ near context&lt;br&gt;window?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFE6A8;strokeColor=#C79A2E;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="150" y="214" width="170" height="80" as="geometry"/>
+                    <mxGeometry x="230" y="228" width="160" height="80" as="geometry"/>
                 </mxCell>
                 <mxCell id="f3a" value="compact.compact_history&lt;br&gt;summarize older turns" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F0FA;strokeColor=#4d7ea8;fontColor=#12324a;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="400" y="228" width="210" height="52" as="geometry"/>
+                    <mxGeometry x="520" y="242" width="230" height="52" as="geometry"/>
                 </mxCell>
                 <mxCell id="f4" value="④ harmony_codec.render&lt;br&gt;→ token IDs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F0FA;strokeColor=#4d7ea8;fontColor=#12324a;fontSize=12;" parent="1" vertex="1">
-                    <mxGeometry x="120" y="320" width="230" height="50" as="geometry"/>
+                    <mxGeometry x="180" y="340" width="260" height="50" as="geometry"/>
                 </mxCell>
                 <mxCell id="f5" value="⑤ inference.complete_stream (SSE)&lt;br&gt;token deltas → StreamDecoder&lt;br&gt;→ UI types the answer live" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F0FA;strokeColor=#4d7ea8;fontColor=#12324a;fontSize=12;" parent="1" vertex="1">
-                    <mxGeometry x="120" y="396" width="230" height="70" as="geometry"/>
+                    <mxGeometry x="180" y="418" width="260" height="70" as="geometry"/>
                 </mxCell>
                 <mxCell id="f5b" value="fallback:&lt;br&gt;complete() non-streaming" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EFEFEF;strokeColor=#9aa;fontColor=#333;fontSize=11;dashed=1;" parent="1" vertex="1">
-                    <mxGeometry x="400" y="404" width="200" height="52" as="geometry"/>
+                    <mxGeometry x="520" y="427" width="230" height="52" as="geometry"/>
                 </mxCell>
                 <mxCell id="f6" value="⑥ harmony_codec.parse&lt;br&gt;(+ malformed-header salvage)&lt;br&gt;→ channel messages" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F0FA;strokeColor=#4d7ea8;fontColor=#12324a;fontSize=12;" parent="1" vertex="1">
-                    <mxGeometry x="120" y="496" width="230" height="64" as="geometry"/>
+                    <mxGeometry x="180" y="520" width="260" height="64" as="geometry"/>
                 </mxCell>
                 <mxCell id="f7" value="⑦ which channel?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFE6A8;strokeColor=#C79A2E;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="150" y="590" width="170" height="90" as="geometry"/>
+                    <mxGeometry x="230" y="612" width="160" height="90" as="geometry"/>
                 </mxCell>
-                <mxCell id="f7a" value="commentary → dispatch tool(s)&lt;br&gt;via Registry (sandbox + budget)&lt;br&gt;append result → loop ④" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F0FA;strokeColor=#4d7ea8;fontColor=#12324a;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="400" y="556" width="240" height="60" as="geometry"/>
+                <mxCell id="f7a" value="commentary → dispatch tool(s) via Registry&lt;br&gt;list_dir · glob · grep · read · lsp · bash&lt;br&gt;(sandbox + budget) → append result → loop ④" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7F0FA;strokeColor=#4d7ea8;fontColor=#12324a;fontSize=11;" parent="1" vertex="1">
+                    <mxGeometry x="520" y="584" width="290" height="60" as="geometry"/>
                 </mxCell>
                 <mxCell id="f7b" value="final → answer&lt;br&gt;print + token/status  ✓" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DDF3E4;strokeColor=#4C9A6A;fontColor=#12402a;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="400" y="628" width="240" height="52" as="geometry"/>
+                    <mxGeometry x="520" y="656" width="290" height="52" as="geometry"/>
                 </mxCell>
                 <mxCell id="f7c" value="empty → leaked-call dispatch&lt;br&gt;or escalating nudge → loop ④" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBE6E6;strokeColor=#C97A7A;fontColor=#5a1f1f;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="400" y="692" width="240" height="52" as="geometry"/>
+                    <mxGeometry x="520" y="720" width="290" height="52" as="geometry"/>
                 </mxCell>
                 <mxCell id="fov" value="ContextOverflow (400)&lt;br&gt;→ drop reasoning → retry ④" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBE6E6;strokeColor=#C97A7A;fontColor=#5a1f1f;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="690" y="396" width="220" height="52" as="geometry"/>
+                    <mxGeometry x="880" y="418" width="240" height="52" as="geometry"/>
                 </mxCell>
                 <mxCell id="fcancel" value="cancel set (Ctrl-C)&lt;br&gt;→ abort stream → cancelled  ✓" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DDF3E4;strokeColor=#4C9A6A;fontColor=#12402a;fontSize=11;" parent="1" vertex="1">
-                    <mxGeometry x="690" y="486" width="220" height="52" as="geometry"/>
+                    <mxGeometry x="880" y="508" width="240" height="52" as="geometry"/>
                 </mxCell>
                 <mxCell id="fe1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#4d4d4d;" parent="1" source="f1" target="f2" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
@@ -349,8 +397,12 @@
                 <mxCell id="fe7c" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#4d4d4d;" parent="1" source="f7" target="f7c" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="fe7aloop" value="loop" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#7a9;dashed=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="f7a" target="f4" edge="1">
-                    <mxGeometry relative="1" as="geometry"/>
+                <mxCell id="fe7aloop" value="loop" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#7a9;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="f7a" target="f4" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1010" y="365"/>
+                        </Array>
+                    </mxGeometry>
                 </mxCell>
                 <mxCell id="feov" value="on 400" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#C97A7A;dashed=1;" parent="1" source="f5" target="fov" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
@@ -358,8 +410,8 @@
                 <mxCell id="fecancel" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;fontSize=9;strokeColor=#4C9A6A;dashed=1;" parent="1" source="f5" target="fcancel" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="p4-legend" value="Blue = step · Amber diamond = decision · Green = turn ends · Red = recovery path" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=11;fontColor=#667;" parent="1" vertex="1">
-                    <mxGeometry x="120" y="770" width="700" height="20" as="geometry"/>
+                <mxCell id="p4-legend" value="Blue = step · Amber diamond = decision · Green = turn ends · Red = recovery path · Grey dashed = fallback" style="text;html=1;strokeColor=none;fillColor=none;align=left;fontSize=11;fontColor=#667;" parent="1" vertex="1">
+                    <mxGeometry x="180" y="800" width="800" height="20" as="geometry"/>
                 </mxCell>
             </root>
         </mxGraphModel>
