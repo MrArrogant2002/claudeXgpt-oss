@@ -90,6 +90,17 @@ DEFAULT_INSTRUCTIONS = (
     "Always finish with a clear final answer in plain text, grounded in the code you read."
 )
 
+# Appended only when the `lsp` tool is available (a language server is installed),
+# so we never point the model at a tool that isn't registered.
+LSP_INSTRUCTIONS = (
+    "\n\nYou also have an `lsp` tool backed by the project's language server — use it to "
+    "resolve a symbol PRECISELY rather than guessing from grep: `defs` (where a symbol is "
+    "defined), `refs` (its callers/references), `info` (its type/signature/doc), `outline` "
+    "(all symbols in a file). Prefer `lsp` over `grep` when you know a symbol NAME and want its "
+    "definition, callers, or type; use `grep` for free-text search or when `lsp` reports no "
+    "server. After `lsp` gives a file:line, `read` those lines to ground your answer."
+)
+
 # Appended to the instructions only when the `bash` tool is available (execution
 # enabled), so we never tell the model to use a tool it doesn't have.
 EXEC_INSTRUCTIONS = (
@@ -184,6 +195,8 @@ def run_turn(
     """
     max_turns = max_turns or config.MAX_TURNS
     instructions = instructions or DEFAULT_INSTRUCTIONS
+    if registry.get("lsp"):  # language server present -> teach the model to use it
+        instructions = instructions + LSP_INSTRUCTIONS
     if registry.get("bash"):  # execution enabled -> teach the model to use it
         instructions = instructions + EXEC_INSTRUCTIONS
 

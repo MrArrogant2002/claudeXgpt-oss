@@ -40,6 +40,12 @@ pip install -r requirements.txt   # openai-harmony, requests
 Also needed (not pip): a **gpt-oss GGUF** + recent **llama.cpp** (`llama-server`),
 and **ripgrep** (`rg`) on PATH (grep falls back to pure-Python if it's missing).
 
+**Optional (semantic code intelligence):** a **language server** on PATH for the code
+you're analyzing enables the `lsp` tool (precise definitions / references / types).
+Install the one for your target language — e.g. `pip install python-lsp-server` (Python),
+`npm i -g pyright typescript-language-server`, `gopls`, `rust-analyzer`, `clangd`. Without
+any server the agent just uses grep, exactly as before. See "Semantic code intelligence" below.
+
 **One-time (for fully-offline tokenizing):** download the ~3.6 MB Harmony BPE vocab
 into `vendor/tiktoken/` once — see [`vendor/tiktoken/README.md`](vendor/tiktoken/README.md):
 
@@ -163,6 +169,7 @@ the developer instructions in `agent/loop.py`.
 | `AGENT_ALLOW_EXEC` | off | `1`/`true` enables the `bash` tool without `--allow-exec` |
 | `AGENT_EXEC_TIMEOUT` | `60` | default seconds before a `bash` command is killed |
 | `AGENT_EXEC_TIMEOUT_MAX` | `300` | hard cap the model's per-command `timeout` can't exceed |
+| `AGENT_DISABLE_LSP` | off | `1`/`true` disables the `lsp` tool even if a language server is installed |
 | `AGENT_PROJECT_ROOT` | cwd | default project root (or use `--project`) |
 | `AGENT_TOOL_RESULT_CAP` | `12000` | max chars per tool result |
 | `AGENT_READ_DEFAULT_LINES` | `300` | lines `read` returns when no end line is given |
@@ -211,6 +218,22 @@ fork bombs, disk writes…), every command is echoed to stderr, and each run has
 timeout (`AGENT_EXEC_TIMEOUT`, capped by `AGENT_EXEC_TIMEOUT_MAX`). These are
 guardrails, **not a sandbox** — only enable it for code you trust, and prefer running
 the whole agent inside a container.
+
+### Semantic code intelligence (the `lsp` tool)
+
+If a **language server** for the project's language is installed on PATH, the agent gains
+an `lsp` tool that resolves symbols *precisely* instead of guessing from grep text matches:
+
+- `defs` — where a symbol is defined · `refs` — its references/callers ·
+  `info` — its type/signature/doc (hover) · `outline` — the symbols in a file.
+
+The model gives a symbol *name* (e.g. `Session.send`); the tool asks the language server and
+returns `path:line:` results it then `read`s — the same shape as grep, so nothing else changes.
+It **auto-activates** only when a server is found (see Prerequisites), runs **fully locally**
+(the server is a local process), and **falls back to grep** when no server matches the language
+or a lookup fails. Cross-server safe: it uses `workspace/symbol` where available (pyright, gopls,
+rust-analyzer, clangd) and a grep-seeded `definition`/`references`/`hover` where it isn't (e.g.
+python-lsp-server). Disable entirely with `AGENT_DISABLE_LSP=1`.
 
 **Long sessions (M5):** the agent auto-detects the server's context window (via
 `/props`) and, when a prompt approaches it, summarizes older turns into a compact
