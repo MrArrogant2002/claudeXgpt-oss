@@ -52,33 +52,52 @@ if HAS_PTK:
 
     _STYLE = Style.from_dict(
         {
-            "prompt": "#f5b942 bold",  # amber
-            "bottom-toolbar": "#9ca3af bg:#1b1f27",
+            "prompt": "#d97757 bold",  # coral (Claude-style)
+            "bottom-toolbar": "#b8b3ad bg:#2a2724",
         }
     )
 
-    def build_session(history_path):
-        """Return a configured PromptSession, or None on failure."""
+    def build_session(history_path, on_shift_tab=None):
+        """Return a configured PromptSession, or None on failure. `on_shift_tab`, if
+        given, is called when the user presses Shift+Tab (used to cycle the write-tier
+        permission mode) and the screen is redrawn so the toolbar reflects it."""
         try:
+            kb = KeyBindings()
+            if on_shift_tab is not None:
+
+                @kb.add("s-tab")
+                def _cycle(event):
+                    try:
+                        on_shift_tab()
+                    except Exception:
+                        pass
+                    event.app.invalidate()  # redraw the bottom toolbar with the new mode
+
             return PromptSession(
                 history=FileHistory(history_path),
                 completer=_SlashCompleter(),
                 complete_while_typing=True,
                 style=_STYLE,
-                key_bindings=KeyBindings(),
+                key_bindings=kb,
             )
         except Exception:
             return None
 
-    def read(session, toolbar):
-        """Read one line with history + autocomplete + bottom toolbar.
+    def read(session, toolbar, placeholder=None):
+        """Read one line with history + autocomplete + bottom toolbar + ghost text.
         Raises KeyboardInterrupt on Ctrl-C and EOFError on Ctrl-D (like input())."""
-        return session.prompt(HTML("\n<prompt>› </prompt>"), bottom_toolbar=toolbar)
+        ph = None
+        if placeholder:
+            safe = placeholder.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            ph = HTML(f'<style fg="#7a7570">{safe}</style>')
+        return session.prompt(
+            HTML("\n<prompt>› </prompt>"), bottom_toolbar=toolbar, placeholder=ph
+        )
 
 else:  # pragma: no cover - exercised only when prompt_toolkit is absent
 
-    def build_session(history_path):
+    def build_session(history_path, on_shift_tab=None):
         return None
 
-    def read(session, toolbar):  # never called (session is None)
+    def read(session, toolbar, placeholder=None):  # never called (session is None)
         raise RuntimeError("prompt_toolkit not available")

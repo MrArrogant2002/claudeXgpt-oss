@@ -15,9 +15,17 @@ import time
 from .. import config, inference, loop
 from .. import harmony_codec as hc
 from ..tools import default_registry
-from . import render
+from . import banner, render
 from . import session as ptk_session
 from .theme import CLEAR_LINE, CR, GLYPH, SPINNER, paint
+
+# Rotating ghost placeholders shown in the empty input (Claude-style).
+_PLACEHOLDERS = [
+    'Try "explain how Session.send works"',
+    'Try "where is the retry logic defined?"',
+    'Try "compile and fix the failing test"',
+    'Try "what does this module do, in 3 lines?"',
+]
 
 
 class _Spinner:
@@ -68,6 +76,8 @@ class App:
         self.out = stream or sys.stdout
         self._events_q = None  # set per-turn; lets the permission prompter reach the queue
         self._cancel = None
+        self._engine = None  # write-tier permission engine (built below iff editing)
+        self._ph_i = 0  # rotating-placeholder index
         # Rich input (history + autocomplete) when prompt_toolkit is present AND
         # we're on a real terminal; otherwise fall back to stdlib input().
         self.session = None
@@ -76,7 +86,9 @@ class App:
         except Exception:
             is_tty = False
         if ptk_session.HAS_PTK and is_tty:
-            self.session = ptk_session.build_session(self._history_path())
+            self.session = ptk_session.build_session(
+                self._history_path(), on_shift_tab=self._cycle_mode
+            )
         # Write-tier permission engine with an INTERACTIVE prompter (M5). Built only
         # when editing is enabled; the prompter marshals the ask onto the main thread.
         self.can_use_tool = None
@@ -94,17 +106,43 @@ class App:
     def _history_path(self):
         return os.path.join(os.path.expanduser("~"), ".agent_tui_history")
 
+    _MODE_LABEL = {
+        "plan": "plan", "default": "ask-edits", "acceptEdits": "accept-edits",
+        "bypassPermissions": "bypass", "dontAsk": "auto",
+    }
+
     def _toolbar(self):
         used = inference.usage_snapshot().get("last_prompt", 0)
-        exec_state = "on" if config.ALLOW_EXEC else "off"
-        return (
-            f"  reasoning:{self.reasoning} · exec:{exec_state} · "
-            f"ctx {used}/{self.n_ctx} · ^C interrupt · /help"
-        )
+        parts = []
+        if self.permission_mode:
+            parts.append(f"{GLYPH['warn']} {self._MODE_LABEL.get(self.permission_mode, self.permission_mode)}")
+        else:
+            parts.append("read-only")
+        if config.ALLOW_EXEC:
+            parts.append("exec:on")
+        parts.append(f"ctx {render._hn(used)}/{render._hn(self.n_ctx)}")
+        if self.permission_mode:
+            parts.append("shift-tab: mode")
+        parts.append("? · /help")
+        return "  " + " · ".join(parts)
+
+    def _cycle_mode(self):
+        """Shift+Tab: cycle the write-tier permission mode (plan → ask → accept)."""
+        if self._engine is None:
+            return
+        order = ["plan", "default", "acceptEdits"]
+        try:
+            i = order.index(self.permission_mode)
+        except ValueError:
+            i = -1
+        self.permission_mode = order[(i + 1) % len(order)]
+        self._engine.mode = self.permission_mode
 
     def _read_line(self):
         if self.session is not None:
-            return ptk_session.read(self.session, self._toolbar).strip()
+            ph = _PLACEHOLDERS[self._ph_i % len(_PLACEHOLDERS)]
+            self._ph_i += 1
+            return ptk_session.read(self.session, self._toolbar, placeholder=ph).strip()
         return input(paint(f"\n{GLYPH['prompt']} ", "accent", bold=True)).strip()
 
     # --- interactive permission approval (M5) -------------------------------
@@ -405,9 +443,20 @@ class App:
 
     # --- main loop ----------------------------------------------------------
     def run(self):
+        try:
+            inference.health()
+            server_ok = True
+        except Exception:
+            server_ok = False
         self._p(
-            render.banner(
-                str(self.sandbox.root), config.MODEL, self.n_ctx, config.ALLOW_EXEC
+            banner.render(
+                str(self.sandbox.root),
+                config.MODEL,
+                self.n_ctx,
+                exec_on=config.ALLOW_EXEC,
+                edit_mode=self._MODE_LABEL.get(self.permission_mode, "off"),
+                base_url=config.BASE_URL,
+                server_ok=server_ok,
             )
         )
         while True:

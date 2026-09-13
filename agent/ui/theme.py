@@ -59,17 +59,21 @@ def refresh():
     GLYPH = _build_glyphs()
     SPINNER = _build_spinner()
 
-# --- palette (r, g, b) — Amber / Gold on Graphite ---------------------------
+# --- palette (r, g, b) — Espresso & Cream -----------------------------------
+# Source palette: #000000 · #1F150C · #412D15 · #E1DCC9 (black → espresso → coffee →
+# cream). The two darkest browns are BACKGROUND tones (unreadable as text on a dark
+# terminal), so the theme text is the cream (#E1DCC9, used literally as `fg`) and the
+# accent is the coffee brown LIFTED to a readable caramel. Semantics stay earthy.
 PALETTE = {
-    "accent": (245, 185, 66),   # amber/gold — user prompt, spinner, ctx bar
-    "tool": (96, 165, 250),     # blue 400   — tool-call bullet + name (cool contrast)
-    "second": (192, 132, 252),  # purple 400 — secondary accents
-    "think": (156, 163, 175),   # gray 400   — reasoning
-    "ok": (74, 222, 128),       # green 400  — exit 0 / success
-    "err": (248, 113, 113),     # red 400    — errors / exit != 0 / refused
-    "warn": (251, 146, 60),     # orange 400 — warnings, exec badge, near-limit ctx
-    "dim": (107, 114, 128),     # gray 500   — metadata, borders, summaries
-    "fg": (229, 231, 235),      # gray 200   — primary text
+    "accent": (198, 156, 109),  # caramel    — prompt, spinner, mascot (lifted #412D15)
+    "tool": (176, 141, 97),     # coffee-tan — tool-call bullet + name
+    "second": (170, 150, 132),  # taupe      — secondary accents
+    "think": (138, 124, 102),   # dim taupe  — reasoning
+    "ok": (150, 162, 110),      # sage/olive — success / diff additions (earthy)
+    "err": (194, 106, 74),      # terracotta — errors / diff deletions / refused
+    "warn": (206, 160, 92),     # ochre      — warnings, exec badge, mode badge
+    "dim": (140, 128, 108),     # warm taupe — metadata, borders, ghost text
+    "fg": (225, 220, 201),      # cream      — primary text (#E1DCC9, from the palette)
 }
 
 RESET = "\x1b[0m"
@@ -115,6 +119,8 @@ def _build_glyphs():
         "bar_full": g("▓", "#"),
         "bar_empty": g("░", "."),
         "expand": g("▸", ">"),
+        "gutter": g("│", "|"),
+        "dot": g("●", "*"),
     }
 
 
