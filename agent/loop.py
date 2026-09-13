@@ -113,6 +113,17 @@ EXEC_INSTRUCTIONS = (
     "or use the network — run checks only."
 )
 
+# Appended only when the write tools are registered (editing enabled). Every edit is
+# permission-gated; a denied edit comes back as data, not a crash.
+EDIT_INSTRUCTIONS = (
+    "\n\nYou also have write tools: `edit` (replace an exact, unique `old_string` in a file), "
+    "`write` (create/overwrite a file), and `multi_edit` (several edits to one file atomically). "
+    "You MUST `read` a file before editing it. Keep changes minimal and targeted — prefer a small "
+    "`edit` over rewriting a whole file. Edits require permission and may be denied (that's data, "
+    "not an error — do not retry blindly). After changing code, run the tests/compile with `bash` "
+    "(if available) and fix any failures before finishing."
+)
+
 # Bound how many CONSECUTIVE empty-final turns we tolerate before giving up. The
 # counter resets whenever the model makes a tool call (real progress), so a long
 # multi-file exploration with the occasional narration turn won't trip it.
@@ -181,6 +192,7 @@ def run_turn(
     cancel=None,
     stream=False,
     on_delta=None,
+    can_use_tool=None,
 ):
     """Run one user turn to completion. Returns (Result, updated_history).
 
@@ -199,6 +211,8 @@ def run_turn(
         instructions = instructions + LSP_INSTRUCTIONS
     if registry.get("bash"):  # execution enabled -> teach the model to use it
         instructions = instructions + EXEC_INSTRUCTIONS
+    if registry.get("edit"):  # write tier enabled -> teach the model to use it
+        instructions = instructions + EDIT_INSTRUCTIONS
 
     # New user turn: drop stale chain-of-thought from prior turns, then add input.
     history = context.drop_stale_cot(history)
@@ -359,10 +373,28 @@ def run_turn(
                     except json.JSONDecodeError as e:
                         result = f"ERROR: invalid JSON arguments: {e}"
                     else:
-                        try:
-                            result = tool.run(args, sandbox)
-                        except Exception as e:  # errors are DATA, not crashes
-                            result = f"ERROR: {type(e).__name__}: {e}"
+                        # Permission gate: only fires for tools that declare
+                        # check_permissions (the write tools) — bash and read-only
+                        # tools are never gated here, so their behavior is unchanged.
+                        decision = None
+                        if can_use_tool is not None and getattr(tool, "check_permissions", None):
+                            decision = can_use_tool(tool, args, sandbox)
+                        if decision is not None and getattr(decision, "behavior", "allow") == "deny":
+                            result = f"Permission denied: {getattr(decision, 'reason', '') or 'not allowed'}"
+                            if on_event:
+                                on_event(
+                                    {
+                                        "role": "system",
+                                        "channel": None,
+                                        "recipient": None,
+                                        "content": f"[permission] denied {name}: {getattr(decision, 'reason', '')}",
+                                    }
+                                )
+                        else:
+                            try:
+                                result = tool.run(args, sandbox)
+                            except Exception as e:  # errors are DATA, not crashes
+                                result = f"ERROR: {type(e).__name__}: {e}"
                 result = context.budget(result)
                 history.append(hc.tool_result_message(recipient, result))
                 if on_event:

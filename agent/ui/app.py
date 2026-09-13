@@ -55,6 +55,7 @@ class App:
         quiet,
         stream=None,
         streaming=True,
+        can_use_tool=None,
     ):
         self.sandbox = sandbox
         self.registry = registry
@@ -63,6 +64,7 @@ class App:
         self.show_reasoning = show_reasoning
         self.quiet = quiet
         self.streaming = streaming  # token-by-token output (P3)
+        self.can_use_tool = can_use_tool  # permission gate for the write tools
         self.history = []
         self.out = stream or sys.stdout
         # Rich input (history + autocomplete) when prompt_toolkit is present AND
@@ -168,6 +170,7 @@ class App:
                     cancel=cancel,
                     stream=self.streaming,
                     on_delta=on_delta,
+                    can_use_tool=self.can_use_tool,
                 )
                 result["res"], result["hist"] = res, hist
             except Exception as e:  # never let the worker kill the REPL

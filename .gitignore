@@ -54,3 +54,6 @@ mlruns/
 # Keep the README + docs; ignore the ~3.6MB vocab blobs.
 vendor/tiktoken/*
 !vendor/tiktoken/README.md
+
+# Reversible backups written by the edit/write tools (per-project).
+.agent-backups/

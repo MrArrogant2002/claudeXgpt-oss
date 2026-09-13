@@ -156,6 +156,8 @@ the developer instructions in `agent/loop.py`.
 | `--show-reasoning` | off | Print the analysis channel to stderr (debug) |
 | `--quiet` | off | Hide the tool-call trace |
 | `--allow-exec` | off | Enable the `bash` tool (runs shell commands to compile/lint/test). **Off by default**; only enable for code you trust to run on this machine. |
+| `--allow-edit` | off | Enable the write tools (`edit`/`write`/`multi_edit`). **Off by default.** Gated by the permission engine. |
+| `--permission-mode` | `plan` | Write-tier policy: `plan` (read-only) · `default` (ask) · `acceptEdits` · `bypassPermissions` · `dontAsk`. |
 
 ## Configuration (env vars, override without editing code)
 
@@ -170,6 +172,10 @@ the developer instructions in `agent/loop.py`.
 | `AGENT_EXEC_TIMEOUT` | `60` | default seconds before a `bash` command is killed |
 | `AGENT_EXEC_TIMEOUT_MAX` | `300` | hard cap the model's per-command `timeout` can't exceed |
 | `AGENT_DISABLE_LSP` | off | `1`/`true` disables the `lsp` tool even if a language server is installed |
+| `AGENT_ALLOW_EDIT` | off | `1`/`true` enables the write tools without `--allow-edit` |
+| `AGENT_PERMISSION_MODE` | `plan` | default write-tier permission mode (see `--permission-mode`) |
+| `AGENT_EDIT_MAX_BYTES` | `2000000` | refuse writes larger than this |
+| `AGENT_EDIT_BACKUP_DIR` | `.agent-backups` | per-project dir where prior file bytes are backed up (git-ignored) |
 | `AGENT_PROJECT_ROOT` | cwd | default project root (or use `--project`) |
 | `AGENT_TOOL_RESULT_CAP` | `12000` | max chars per tool result |
 | `AGENT_READ_DEFAULT_LINES` | `300` | lines `read` returns when no end line is given |
@@ -234,6 +240,36 @@ It **auto-activates** only when a server is found (see Prerequisites), runs **fu
 or a lookup fails. Cross-server safe: it uses `workspace/symbol` where available (pyright, gopls,
 rust-analyzer, clangd) and a grep-seeded `definition`/`references`/`hover` where it isn't (e.g.
 python-lsp-server). Disable entirely with `AGENT_DISABLE_LSP=1`.
+
+### Changing code — the write tier (`--allow-edit`)
+
+By default the agent is **read-only**. `--allow-edit` adds three write tools —
+**`edit`** (replace an exact, unique string), **`write`** (create/overwrite), and
+**`multi_edit`** (several edits to one file, atomically) — and every mutation passes through
+a **permission engine** (`agent/permissions.py`) before it touches disk.
+
+**Permissions are the point.** A session runs in a **mode** (`--permission-mode`), most→least
+safe: `plan` (read-only, the default) → `default` (ask per edit) → `acceptEdits` (auto-approve
+edits) → `bypassPermissions` / `dontAsk`. The resolution chain is: **path-scoped allow/ask/deny
+rules (deny wins) → the tool's own check → mode policy → prompt**, with the **`Sandbox` as the
+hard wall underneath** (no write can escape the project root, ever). Secrets and VCS/vendored
+paths (`.env`, `.git/`, keys, `vendor/`, `.venv/`, …) are **always denied — even under
+`bypassPermissions`**.
+
+Every edit is **read-before-write** (you must `read` a file, unchanged since, before editing it),
+**atomic** (temp-file → `os.replace`), **reversible** (prior bytes saved to `.agent-backups/`),
+and returns a **unified diff**. A denied edit comes back to the model as data, never a crash.
+
+```bash
+# read-only (default) — edits are blocked
+python cli.py --project ./repo --allow-edit "…"
+# actually allow edits in a one-shot/headless run (no interactive prompt possible):
+python cli.py --project ./repo --allow-edit --permission-mode acceptEdits "fix the failing test"
+```
+
+> Interactive per-edit approval (allow once / session / always / deny) in the TUI is the next
+> step; for now use `--permission-mode acceptEdits` to enable edits, and pair with `--allow-exec`
+> so the agent can run the tests and fix failures (edit → test → fix).
 
 **Long sessions (M5):** the agent auto-detects the server's context window (via
 `/props`) and, when a prompt approaches it, summarizes older turns into a compact

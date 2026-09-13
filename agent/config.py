@@ -46,6 +46,16 @@ ALLOW_EXEC = os.environ.get("AGENT_ALLOW_EXEC", "") not in ("", "0", "false", "F
 EXEC_TIMEOUT = int(os.environ.get("AGENT_EXEC_TIMEOUT", "60"))  # default per command (s)
 EXEC_TIMEOUT_MAX = int(os.environ.get("AGENT_EXEC_TIMEOUT_MAX", "300"))  # hard cap (s)
 
+# --- write tier (opt-in, permission-gated, off by default) ------------------
+# The write tools (edit/write/multi_edit) let the model CHANGE files. They are
+# registered only when editing is enabled (CLI --allow-edit or AGENT_ALLOW_EDIT),
+# and every mutation passes through the permission engine (agent/permissions.py).
+# The default mode is fail-closed: `plan` = read-only.
+ALLOW_EDIT = os.environ.get("AGENT_ALLOW_EDIT", "") not in ("", "0", "false", "False")
+PERMISSION_MODE = os.environ.get("AGENT_PERMISSION_MODE", "plan")  # plan|default|acceptEdits|bypassPermissions|dontAsk
+EDIT_MAX_BYTES = int(os.environ.get("AGENT_EDIT_MAX_BYTES", str(2_000_000)))  # refuse absurd writes
+EDIT_BACKUP_DIRNAME = os.environ.get("AGENT_EDIT_BACKUP_DIR", ".agent-backups")  # under the project root
+
 # --- long-session compaction (M5) ------------------------------------------
 # Server context window in tokens. Auto-detected from /props at startup when
 # possible; this is the fallback if detection fails (matches the recommended

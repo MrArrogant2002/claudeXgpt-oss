@@ -50,10 +50,23 @@ def main():
         action="store_true",
         help="disable token-by-token streaming (falls back to whole-turn output)",
     )
+    ap.add_argument(
+        "--allow-edit",
+        action="store_true",
+        help="enable the write tools (edit/write/multi_edit); off by default",
+    )
+    ap.add_argument(
+        "--permission-mode",
+        default=config.PERMISSION_MODE,
+        choices=["plan", "default", "acceptEdits", "bypassPermissions", "dontAsk"],
+        help="write-tier permission mode (default: plan = read-only)",
+    )
     args = ap.parse_args()
 
     if args.allow_exec:
         config.ALLOW_EXEC = True
+    if args.allow_edit:
+        config.ALLOW_EDIT = True
 
     # preflight: is the local server reachable?
     try:
@@ -67,8 +80,14 @@ def main():
         sys.exit(1)
 
     sandbox = Sandbox(args.project)
-    registry = default_registry()  # includes `bash` iff config.ALLOW_EXEC
+    registry = default_registry()  # includes bash iff ALLOW_EXEC, write tools iff ALLOW_EDIT
     n_ctx = inference.context_size() or config.CONTEXT_TOKENS
+
+    can_use_tool = None
+    if config.ALLOW_EDIT:
+        from agent import permissions
+
+        can_use_tool = permissions.PermissionEngine(mode=args.permission_mode).can_use_tool
 
     App(
         sandbox,
@@ -78,6 +97,7 @@ def main():
         show_reasoning=args.show_reasoning,
         quiet=args.quiet,
         streaming=not args.no_stream,
+        can_use_tool=can_use_tool,
     ).run()
 
 

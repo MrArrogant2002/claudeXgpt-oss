@@ -11,7 +11,7 @@ can pipe just the answer:  python cli.py "..." 2>/dev/null
 import argparse
 import sys
 
-from agent import config, harmony_codec as hc, inference, loop
+from agent import config, harmony_codec as hc, inference, loop, permissions
 from agent.sandbox import Sandbox
 from agent.tools import default_registry
 
@@ -53,10 +53,24 @@ def main():
         help="enable the `bash` tool (runs shell commands to compile/lint/test; "
         "OFF by default — only enable for code you trust to run on this machine)",
     )
+    ap.add_argument(
+        "--allow-edit",
+        action="store_true",
+        help="enable the write tools (edit/write/multi_edit); OFF by default",
+    )
+    ap.add_argument(
+        "--permission-mode",
+        default=config.PERMISSION_MODE,
+        choices=["plan", "default", "acceptEdits", "bypassPermissions", "dontAsk"],
+        help="write-tier permission mode (default: plan = read-only). "
+        "One-shot/headless can't prompt, so use acceptEdits to allow edits.",
+    )
     args = ap.parse_args()
 
     if args.allow_exec:
         config.ALLOW_EXEC = True
+    if args.allow_edit:
+        config.ALLOW_EDIT = True
 
     # preflight: is the server reachable?
     try:
@@ -80,6 +94,17 @@ def main():
         print(
             "[exec] ⚠  command execution ENABLED — the `bash` tool can run arbitrary "
             "shell commands (no container). Only use this on code you trust.",
+            file=sys.stderr,
+        )
+    # Write tier: build the permission engine (headless = no interactive prompt, so
+    # the mode decides; default `plan` is read-only). None when editing is disabled.
+    engine = None
+    if config.ALLOW_EDIT:
+        engine = permissions.PermissionEngine(mode=args.permission_mode)
+        print(
+            f"[edit] ✎  write tools ENABLED — permission mode: {args.permission_mode} "
+            "(plan = read-only). Edits are sandboxed, atomic, and backed up to "
+            f"{config.EDIT_BACKUP_DIRNAME}/.",
             file=sys.stderr,
         )
 
@@ -116,6 +141,7 @@ def main():
             reasoning=args.reasoning,
             on_event=on_event,
             context_tokens=n_ctx,
+            can_use_tool=(engine.can_use_tool if engine else None),
         )
         if res.reason == "completed":
             print(

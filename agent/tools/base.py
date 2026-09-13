@@ -15,6 +15,10 @@ class Tool:
     parameters: dict  # JSON Schema for the arguments
     run: Callable  # (args: dict, sandbox) -> str
     read_only: bool = True
+    # Optional (args, sandbox) -> "allow"|"ask"|"deny". Set only by mutating tools;
+    # its presence is what makes the permission engine *manage* a tool. When None
+    # (all existing tools), the tool is never gated by the engine.
+    check_permissions: Callable | None = None
 
 
 class Registry:

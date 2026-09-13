@@ -25,6 +25,14 @@ def _pick(args, *names):
 def _read(args, sandbox):
     p = sandbox.resolve(args["path"])
     text = p.read_text(encoding="utf-8", errors="replace")
+    # Record the full-file hash so the write tools can enforce read-before-write /
+    # freshness. No effect on what read returns; harmless when editing is disabled.
+    try:
+        from .. import edits
+
+        edits.record_read(p, text)
+    except Exception:
+        pass
     lines = text.splitlines()
     n = len(lines)
 
