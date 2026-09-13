@@ -55,7 +55,7 @@ class App:
         quiet,
         stream=None,
         streaming=True,
-        can_use_tool=None,
+        permission_mode=None,
     ):
         self.sandbox = sandbox
         self.registry = registry
@@ -64,9 +64,10 @@ class App:
         self.show_reasoning = show_reasoning
         self.quiet = quiet
         self.streaming = streaming  # token-by-token output (P3)
-        self.can_use_tool = can_use_tool  # permission gate for the write tools
         self.history = []
         self.out = stream or sys.stdout
+        self._events_q = None  # set per-turn; lets the permission prompter reach the queue
+        self._cancel = None
         # Rich input (history + autocomplete) when prompt_toolkit is present AND
         # we're on a real terminal; otherwise fall back to stdlib input().
         self.session = None
@@ -76,6 +77,15 @@ class App:
             is_tty = False
         if ptk_session.HAS_PTK and is_tty:
             self.session = ptk_session.build_session(self._history_path())
+        # Write-tier permission engine with an INTERACTIVE prompter (M5). Built only
+        # when editing is enabled; the prompter marshals the ask onto the main thread.
+        self.can_use_tool = None
+        self.permission_mode = permission_mode
+        if permission_mode:
+            from ..permissions import PermissionEngine
+
+            self._engine = PermissionEngine(mode=permission_mode, prompter=self._request_permission)
+            self.can_use_tool = self._engine.can_use_tool
 
     def _p(self, s=""):
         self.out.write(s + "\n")
@@ -96,6 +106,62 @@ class App:
         if self.session is not None:
             return ptk_session.read(self.session, self._toolbar).strip()
         return input(paint(f"\n{GLYPH['prompt']} ", "accent", bold=True)).strip()
+
+    # --- interactive permission approval (M5) -------------------------------
+    def _request_permission(self, tool_name, args, spec):
+        """Called from the WORKER thread by the permission engine. Marshals the ask
+        onto the main thread via the event queue and blocks (cancel-aware) for the
+        answer. Returns 'allow_once'|'allow_session'|'always'|'deny'."""
+        done = threading.Event()
+        box = {}
+        self._events_q.put(
+            {"_permission": True, "tool": tool_name, "args": args, "done": done, "box": box}
+        )
+        while not done.wait(0.1):  # poll so Ctrl-C (cancel) can't deadlock us
+            if self._cancel is not None and self._cancel.is_set():
+                return "deny"
+        return box.get("answer", "deny")
+
+    @staticmethod
+    def _map_permission_answer(raw):
+        r = (raw or "").strip().lower()
+        if r in ("y", "yes", "o", "once", "1"):
+            return "allow_once"
+        if r in ("s", "session"):
+            return "allow_session"
+        if r in ("a", "always"):
+            return "always"
+        return "deny"  # n / no / d / empty / anything else -> fail-closed
+
+    def _permission_preview(self, tool_name, args):
+        """One-line summary of the pending change for the approval prompt."""
+        path = args.get("path", "?")
+        if tool_name == "write":
+            n = len((args.get("content") or "").encode("utf-8", "replace"))
+            return f"write {path}  ({n} bytes)"
+        if tool_name == "multi_edit":
+            return f"multi_edit {path}  ({len(args.get('edits') or [])} edits)"
+        old = (args.get("old_string") or "").strip().splitlines()
+        new = (args.get("new_string") or "").strip().splitlines()
+        head = old[0][:50] if old else ""
+        tail = new[0][:50] if new else ""
+        return f"edit {path}  «{head}» → «{tail}»"
+
+    def _prompt_user_for_permission(self, tool_name, args):
+        """Main-thread: show the pending change and read the user's choice."""
+        self._p()
+        self._p("  " + paint(f"{GLYPH['warn']} permission", "warn", bold=True)
+                + "  " + paint(self._permission_preview(tool_name, args), "fg"))
+        prompt = paint("  allow? ", "accent", bold=True) + paint(
+            "[y]once  [s]ession  [a]lways  [N]o: ", "dim"
+        )
+        try:
+            raw = input(prompt)
+        except (EOFError, KeyboardInterrupt):
+            if self._cancel is not None:
+                self._cancel.set()
+            return "deny"
+        return self._map_permission_answer(raw)
 
     # --- event rendering ----------------------------------------------------
     def _render_event(self, f):
@@ -118,6 +184,18 @@ class App:
     def _handle_item(self, f, spin, state):
         """Render one queued item: a streaming delta (types out live) or a full
         event (tool block, system note). Mutates `state` to track open live lines."""
+        if f.get("_permission"):
+            spin.clear()
+            if state["answering"] or state["thinking"]:
+                self._p()
+                state["answering"] = state["thinking"] = False
+            if self._cancel is not None and self._cancel.is_set():
+                answer = "deny"  # tearing down — don't prompt
+            else:
+                answer = self._prompt_user_for_permission(f["tool"], f.get("args") or {})
+            f["box"]["answer"] = answer
+            f["done"].set()
+            return
         if f.get("_delta"):
             ch, text = f.get("channel"), f.get("content") or ""
             if not text:
@@ -153,6 +231,8 @@ class App:
         events_q = queue.Queue()
         result = {}
         cancel = threading.Event()
+        self._events_q = events_q  # let the permission prompter marshal onto the queue
+        self._cancel = cancel
 
         def on_delta(channel, text):
             events_q.put({"_delta": True, "channel": channel, "content": text})

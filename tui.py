@@ -83,11 +83,14 @@ def main():
     registry = default_registry()  # includes bash iff ALLOW_EXEC, write tools iff ALLOW_EDIT
     n_ctx = inference.context_size() or config.CONTEXT_TOKENS
 
-    can_use_tool = None
+    # Write tier: in the interactive TUI, enabling edits defaults to ASKING per edit
+    # (M5) instead of the headless-safe `plan`. App builds the engine with an
+    # interactive prompter from this mode.
+    permission_mode = None
     if config.ALLOW_EDIT:
-        from agent import permissions
-
-        can_use_tool = permissions.PermissionEngine(mode=args.permission_mode).can_use_tool
+        permission_mode = args.permission_mode
+        if permission_mode == "plan":  # interactive: ask per edit, don't silently block
+            permission_mode = "default"
 
     App(
         sandbox,
@@ -97,7 +100,7 @@ def main():
         show_reasoning=args.show_reasoning,
         quiet=args.quiet,
         streaming=not args.no_stream,
-        can_use_tool=can_use_tool,
+        permission_mode=permission_mode,
     ).run()
 
 
