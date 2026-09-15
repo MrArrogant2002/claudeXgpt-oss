@@ -14,6 +14,9 @@ try:
     from prompt_toolkit.history import FileHistory
     from prompt_toolkit.key_binding import KeyBindings
     from prompt_toolkit.styles import Style
+    from prompt_toolkit.application import run_in_terminal
+    from prompt_toolkit.application.current import get_app
+    from prompt_toolkit.filters import Condition
 
     HAS_PTK = True
 except Exception:  # prompt_toolkit not installed
@@ -26,7 +29,10 @@ COMMANDS = {
     "/reasoning": "set reasoning effort: low | medium | high",
     "/show-reasoning": "toggle showing the model's thinking",
     "/exec": "enable/disable the bash (run code) tool: on | off",
+    "/mode": "set the write permission mode: plan | ask | accept",
+    "/model": "show model / server info",
     "/tokens": "show session token usage",
+    "/shortcuts": "keyboard shortcuts",
     "/clear": "clear the screen and conversation history",
     "/exit": "quit",
 }
@@ -57,10 +63,10 @@ if HAS_PTK:
         }
     )
 
-    def build_session(history_path, on_shift_tab=None):
-        """Return a configured PromptSession, or None on failure. `on_shift_tab`, if
-        given, is called when the user presses Shift+Tab (used to cycle the write-tier
-        permission mode) and the screen is redrawn so the toolbar reflects it."""
+    def build_session(history_path, on_shift_tab=None, on_help=None):
+        """Return a configured PromptSession, or None on failure. `on_shift_tab` cycles
+        the write-tier permission mode; `on_help` shows the shortcuts overlay when the
+        user presses `?` on an empty line (a non-empty line inserts a literal `?`)."""
         try:
             kb = KeyBindings()
             if on_shift_tab is not None:
@@ -72,6 +78,12 @@ if HAS_PTK:
                     except Exception:
                         pass
                     event.app.invalidate()  # redraw the bottom toolbar with the new mode
+
+            if on_help is not None:
+
+                @kb.add("?", filter=Condition(lambda: not get_app().current_buffer.text))
+                def _help(event):
+                    run_in_terminal(lambda: (on_help(), None)[1])
 
             return PromptSession(
                 history=FileHistory(history_path),
@@ -96,7 +108,7 @@ if HAS_PTK:
 
 else:  # pragma: no cover - exercised only when prompt_toolkit is absent
 
-    def build_session(history_path, on_shift_tab=None):
+    def build_session(history_path, on_shift_tab=None, on_help=None):
         return None
 
     def read(session, toolbar, placeholder=None):  # never called (session is None)

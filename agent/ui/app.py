@@ -87,7 +87,9 @@ class App:
             is_tty = False
         if ptk_session.HAS_PTK and is_tty:
             self.session = ptk_session.build_session(
-                self._history_path(), on_shift_tab=self._cycle_mode
+                self._history_path(),
+                on_shift_tab=self._cycle_mode,
+                on_help=self._print_shortcuts,
             )
         # Write-tier permission engine with an INTERACTIVE prompter (M5). Built only
         # when editing is enabled; the prompter marshals the ask onto the main thread.
@@ -185,13 +187,64 @@ class App:
         tail = new[0][:50] if new else ""
         return f"edit {path}  «{head}» → «{tail}»"
 
+    def _compute_edit_preview(self, tool_name, args):
+        """Best-effort unified diff of what the pending edit WOULD do (or None)."""
+        try:
+            from .. import edits
+
+            p = self.sandbox.resolve(args.get("path", ""))
+            current = p.read_text(encoding="utf-8", errors="replace") if p.exists() else ""
+            if tool_name == "write":
+                updated = args.get("content", "")
+            elif tool_name == "multi_edit":
+                updated = current
+                for e in args.get("edits", []) or []:
+                    old = e.get("old_string")
+                    if not old or old not in updated:
+                        return None
+                    new = e.get("new_string", "")
+                    updated = updated.replace(old, new) if e.get("replace_all") else updated.replace(old, new, 1)
+            else:  # edit
+                old = args.get("old_string")
+                if not old or old not in current:
+                    return None
+                new = args.get("new_string", "")
+                updated = current.replace(old, new) if args.get("replace_all") else current.replace(old, new, 1)
+            rel = str(self.sandbox.relativize(p)).replace("\\", "/")
+            return edits.unified_diff(current, updated, rel)
+        except Exception:
+            return None
+
+    def _render_diff_box(self, op, rel, diff):
+        w = min(render._term_width(), 78)
+        head = f"┌─ permission · {op} "
+        rule = "─" * max(4, w - len(head) - len(rel) - 1)
+        self._p("  " + paint(head, "warn") + paint(rel, "fg") + " " + paint(rule, "warn"))
+        lines = [ln.rstrip("\n") for ln in diff.splitlines() if not ln.startswith(("--- ", "+++ "))]
+        for ln in lines[:14]:
+            color = "dim"
+            if ln.startswith("@@"):
+                color = "dim"
+            elif ln.startswith("+"):
+                color = "ok"
+            elif ln.startswith("-"):
+                color = "err"
+            self._p("  " + paint("│ ", "warn") + paint(ln[: w - 4], color))
+        if len(lines) > 14:
+            self._p("  " + paint("│ ", "warn") + paint(f"… {len(lines) - 14} more lines", "dim"))
+        self._p("  " + paint("└" + "─" * (w - 1), "warn"))
+
     def _prompt_user_for_permission(self, tool_name, args):
-        """Main-thread: show the pending change and read the user's choice."""
+        """Main-thread: show the pending change (as a diff box) and read the choice."""
         self._p()
-        self._p("  " + paint(f"{GLYPH['warn']} permission", "warn", bold=True)
-                + "  " + paint(self._permission_preview(tool_name, args), "fg"))
+        diff = self._compute_edit_preview(tool_name, args)
+        if diff and diff.strip():
+            self._render_diff_box(tool_name, args.get("path", "?"), diff)
+        else:
+            self._p("  " + paint(f"{GLYPH['warn']} permission", "warn", bold=True)
+                    + "  " + paint(self._permission_preview(tool_name, args), "fg"))
         prompt = paint("  allow? ", "accent", bold=True) + paint(
-            "[y]once  [s]ession  [a]lways  [N]o: ", "dim"
+            "[y] once  [s] session  [a] always  [N] no › ", "dim"
         )
         try:
             raw = input(prompt)
@@ -413,9 +466,61 @@ class App:
                     f"{u['calls']} calls · salvaged {hc.salvage_count()}"
                 )
             )
+        elif cmd == "mode":
+            self._set_mode(arg)
+        elif cmd == "model":
+            self._print_model_info()
+        elif cmd in ("shortcuts", "keys"):
+            self._print_shortcuts()
         else:
             self._p(render.system_note(f"unknown command: /{cmd}  (try /help)"))
         return True
+
+    def _set_mode(self, arg):
+        aliases = {
+            "plan": "plan", "ask": "default", "default": "default",
+            "accept": "acceptEdits", "acceptedits": "acceptEdits",
+            "bypass": "bypassPermissions", "auto": "dontAsk",
+        }
+        if self._engine is None:
+            self._p(render.system_note("editing is off — start with --allow-edit to use permission modes."))
+            return
+        target = aliases.get(arg)
+        if target is None:
+            cur = self._MODE_LABEL.get(self.permission_mode, self.permission_mode)
+            self._p(render.system_note(f"mode is {cur}  (use: /mode plan|ask|accept, or Shift+Tab)"))
+            return
+        self.permission_mode = target
+        self._engine.mode = target
+        self._p(render.system_note(f"mode = {self._MODE_LABEL.get(target, target)}"))
+
+    def _print_model_info(self):
+        rows = [
+            ("model", config.MODEL),
+            ("context", f"{render._hn(self.n_ctx)} tokens"),
+            ("server", config.BASE_URL),
+            ("reasoning", self.reasoning),
+            ("tokenizer", "vendored o200k · offline"),
+        ]
+        self._p()
+        self._p("  " + paint("model", "accent", bold=True))
+        for k, v in rows:
+            self._p("  " + paint(f"{k:<11}", "warn") + paint(str(v), "fg"))
+        self._p("  " + paint("to switch models, restart llama-server with a different GGUF.", "dim"))
+
+    def _print_shortcuts(self):
+        rows = [
+            ("Enter", "submit   ·   Shift+Enter / Alt+Enter   newline"),
+            ("Shift+Tab", "cycle permission mode (plan → ask → accept)"),
+            ("Esc", "interrupt the running turn"),
+            ("Ctrl+C", "cancel input / interrupt   ·   Ctrl+D   quit"),
+            ("↑ / ↓", "input history   ·   Ctrl+L   clear screen"),
+            ("?", "this help   ·   /  commands"),
+        ]
+        self._p()
+        self._p("  " + paint("shortcuts", "accent", bold=True))
+        for k, d in rows:
+            self._p("  " + paint(f"{k:<11}", "warn") + paint(d, "dim"))
 
     def _toggle_exec(self, arg):
         want = {"on": True, "1": True, "true": True, "off": False, "0": False, "false": False}.get(arg)
@@ -434,7 +539,10 @@ class App:
             ("/reasoning low|medium|high", "set reasoning effort"),
             ("/show-reasoning", "toggle showing the model's thinking"),
             ("/exec on|off", "enable/disable the bash (run code) tool"),
+            ("/mode plan|ask|accept", "set the write permission mode (or Shift+Tab)"),
+            ("/model", "show model / server info"),
             ("/tokens", "show session token usage"),
+            ("/shortcuts", "keyboard shortcuts (or press ?)"),
             ("/exit", "quit"),
         ]
         self._p()

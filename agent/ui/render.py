@@ -120,7 +120,7 @@ def _summarize_result(recipient, content):
 
 
 def tool_result(recipient, content):
-    branch = paint(GLYPH["branch"], "dim")
+    branch = paint(GLYPH["result"], "dim")
     return f"    {branch} {_summarize_result(recipient, content)}"
 
 

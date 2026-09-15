@@ -121,6 +121,7 @@ def _build_glyphs():
         "expand": g("▸", ">"),
         "gutter": g("│", "|"),
         "dot": g("●", "*"),
+        "result": g("⎿", "`-"),
     }
 
 
