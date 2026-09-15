@@ -6,20 +6,21 @@ and asserts that the agent:
   2. actually called at least one tool (the navigate-don't-index funnel ran)
   3. grounded its answer in the code (mentions the right file / symbol / behavior)
 
-Run on the model machine with llama-server up on port 8081:
-    python e2e_test.py
+Run on the model machine with llama-server up on port 8081 (from the repo root):
+    python tests/e2e_test.py
 """
 
 import os
 import sys
 
+# Make the repo root importable when run as `python tests/e2e_test.py`.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from agent import config, inference, loop
 from agent.sandbox import Sandbox
 from agent.tools import default_registry
 
-FIXTURE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "tests", "fixture_repo"
-)
+FIXTURE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixture_repo")
 QUESTION = (
     "Which file defines the function validate_token, and what does it check "
     "before it returns a user?"

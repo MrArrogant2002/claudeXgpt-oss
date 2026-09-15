@@ -6,14 +6,18 @@ Run this FIRST on the machine that has the model + llama.cpp server running.
 It validates the one risky assumption the whole agent depends on: that the raw
 /completion endpoint returns output token IDs we can parse.
 
-Usage:
-    python m0_smoke.py
-    AGENT_BASE_URL=http://localhost:8081 python m0_smoke.py     # override server
+Usage (from the repo root):
+    python tests/m0_smoke.py
+    AGENT_BASE_URL=http://localhost:8081 python tests/m0_smoke.py   # override server
 
 Expected: an 'analysis' channel (reasoning) and a 'final' channel saying 4.
 """
 
+import os
 import sys
+
+# Make the repo root importable when run as `python tests/m0_smoke.py`.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agent import config, inference
 from agent import harmony_codec as hc

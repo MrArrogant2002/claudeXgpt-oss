@@ -9,6 +9,10 @@ the way Claude Code does — no embeddings, no index.
 Built on one machine, run on another (the one with the model). Instructions below
 are for the **model machine**.
 
+> **Documentation:** design notes, research, and build plans live in [`docs/`](docs/)
+> — see [`docs/README.md`](docs/README.md) for the index; architecture diagrams are in
+> [`docs/architecture/`](docs/architecture/).
+
 ---
 
 ## Status: M0–M4 complete (full working agent)
@@ -23,7 +27,7 @@ are for the **model machine**.
 | `agent/tools/` | `glob`, `grep`, `read` + registry | M2–M3 |
 | `agent/loop.py` | Orchestration loop (render→infer→parse→dispatch→repeat) | M0–M4 |
 | `cli.py` | Interactive / one-shot entry point | M3 |
-| `m0_smoke.py` | Raw round-trip smoke test | M0 |
+| `tests/m0_smoke.py` | Raw round-trip smoke test | M0 |
 
 Verified offline on the build machine: tools execute, sandbox blocks escapes,
 Harmony renders with tool schemas, budgeting truncates. The M0 smoke test already
@@ -75,7 +79,7 @@ llama-server -m /path/to/gpt-oss-20b.gguf -c 32768 --port 8081 -ngl 999
 ## Step 2 — (optional) re-run the smoke test
 
 ```bash
-python m0_smoke.py
+python tests/m0_smoke.py
 ```
 
 Already passed for you — only re-run if you change the server/port.
@@ -137,7 +141,7 @@ M0 proved the round-trip; this proves the whole funnel (glob→grep→read→ans
 against a bundled fixture repo with a known answer:
 
 ```bash
-python e2e_test.py
+python tests/e2e_test.py
 ```
 
 It asserts the agent (1) completed, (2) actually called ≥1 tool, and (3) grounded
@@ -201,7 +205,7 @@ your question
   → if final: print it; drop this turn's reasoning before the next question
 ```
 
-Design choices (from build-plan.md): single agent, serial tools, in-process tools
+Design choices (from [docs/design/build-plan.md](docs/design/build-plan.md)): single agent, serial tools, in-process tools
 (no MCP), fully local. The navigation tools are **read-only** (`list_dir`, `glob`,
 `grep`, `read`); editing tools are a later tier.
 
