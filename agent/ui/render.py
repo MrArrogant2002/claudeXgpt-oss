@@ -96,11 +96,12 @@ def _summarize_result(recipient, content):
         if m:
             code = int(m.group(1))
             tag = paint(f"exit {code}", "ok" if code == 0 else "err")
-            emsg = ""
+            # show a preview: stderr on failure, otherwise the first stdout line.
             se = re.search(r"--- stderr ---\n(.+)", text)
-            if code != 0 and se:
-                emsg = "  " + paint(_first_line(se.group(1), 60), "dim")
-            return tag + emsg
+            so = re.search(r"--- stdout ---\n(.+)", text)
+            src = se if (code != 0 and se) else (so or se)
+            preview = "  " + paint(_first_line(src.group(1), 60), "dim") if src else ""
+            return tag + preview
         if "timed out" in text:
             return paint("timed out", "err")
         if stripped.startswith("REFUSED"):
@@ -135,12 +136,98 @@ def system_note(content):
     return "  " + paint(str(content), "dim", italic=True)
 
 
-# --- answer -----------------------------------------------------------------
-def answer(text):
-    # Print as-is (terminal soft-wraps); color the body in the primary fg so it
-    # reads as "the model's reply" distinct from the dim tool trace.
+# --- answer (lightweight terminal Markdown) ---------------------------------
+_INLINE_RE = re.compile(r"\*\*(.+?)\*\*|`([^`]+)`")
+
+
+def _md_inline(s, base="fg"):
+    """Render inline **bold** and `code`; strips the markers either way."""
+    out, last = [], 0
+    for m in _INLINE_RE.finditer(s):
+        if m.start() > last:
+            out.append(paint(s[last:m.start()], base))
+        if m.group(1) is not None:
+            out.append(paint(m.group(1), base, bold=True))
+        else:
+            out.append(paint(m.group(2), "second"))
+        last = m.end()
+    out.append(paint(s[last:], base))
+    return "".join(out)
+
+
+def _render_md_table(rows):
+    """Turn Markdown `| a | b |` rows into aligned columns (no pipes)."""
+    parsed = [[c.strip() for c in r.strip().strip("|").split("|")] for r in rows]
+    parsed = [c for c in parsed if not all((set(cell) <= set("-: ")) and cell for cell in c)]
+    if not parsed:
+        return []
+    ncol = max(len(r) for r in parsed)
+    for r in parsed:
+        r += [""] * (ncol - len(r))
+    strip_md = lambda x: re.sub(r"\*\*|`", "", x)
+    avail = max(40, _term_width() - 4)
+    colw = max(10, min(44, avail // ncol))
+
+    def cell(x):
+        c = strip_md(x)
+        return c if len(c) <= colw else c[: colw - 1] + "…"
+
+    widths = [min(colw, max(len(cell(r[i])) for r in parsed)) for i in range(ncol)]
+    out = []
+    for ri, r in enumerate(parsed):
+        parts = [paint(cell(r[i]).ljust(widths[i]), "fg", bold=(ri == 0)) for i in range(ncol)]
+        out.append("  " + "  ".join(parts).rstrip())
+        if ri == 0:
+            out.append("  " + paint("─" * min(avail, sum(widths) + 2 * (ncol - 1)), "dim"))
+    return out
+
+
+def _answer_md(text):
     lines = (text or "").rstrip().splitlines() or [""]
-    return "\n".join(paint(ln, "fg") for ln in lines)
+    out, table, in_code = [], [], False
+
+    def flush():
+        if table:
+            out.extend(_render_md_table(table))
+            table.clear()
+
+    for ln in lines:
+        s = ln.strip()
+        if s.startswith("```"):
+            flush()
+            in_code = not in_code
+            continue
+        if in_code:
+            flush()
+            out.append(paint("    " + ln, "dim"))
+            continue
+        if s.startswith("|") and s.endswith("|") and s.count("|") >= 2:
+            table.append(s)
+            continue
+        flush()
+        if s.startswith("#"):
+            out.append(paint(s.lstrip("# ").replace("**", ""), "accent", bold=True))
+            continue
+        m = re.match(r"^(\s*)[-*+]\s+(.*)", ln)
+        if m:
+            out.append(m.group(1) + paint("• ", "accent") + _md_inline(m.group(2)))
+            continue
+        if s.startswith(">"):
+            out.append(paint("  " + s.lstrip("> "), "dim", italic=True))
+            continue
+        out.append(_md_inline(ln) if s else "")
+    flush()
+    return "\n".join(out)
+
+
+def answer(text):
+    """Render the model's reply with lightweight terminal Markdown. Falls back to
+    plain fg on any error so a weird answer never breaks the display."""
+    try:
+        return _answer_md(text)
+    except Exception:
+        lines = (text or "").rstrip().splitlines() or [""]
+        return "\n".join(paint(ln, "fg") for ln in lines)
 
 
 def error_line(text):

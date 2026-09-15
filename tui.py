@@ -80,7 +80,7 @@ def main():
         sys.exit(1)
 
     sandbox = Sandbox(args.project)
-    registry = default_registry()  # includes bash iff ALLOW_EXEC, write tools iff ALLOW_EDIT
+    registry = default_registry(project_root=str(sandbox.root))  # bash/edit tools per config; lsp iff a server matches the repo
     n_ctx = inference.context_size() or config.CONTEXT_TOKENS
 
     # Write tier: in the interactive TUI, enabling edits defaults to ASKING per edit

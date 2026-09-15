@@ -25,6 +25,7 @@ _EXT_TO_LANG = {ext: lang for lang, (exts, _) in LANGUAGE_SERVERS.items() for ex
 _SKIP_DIRS = {
     ".git", ".hg", ".svn", ".venv", "venv", "env", "node_modules", "__pycache__",
     "target", "dist", "build", ".mypy_cache", ".pytest_cache", ".ruff_cache",
+    ".agent-backups",
 }
 
 

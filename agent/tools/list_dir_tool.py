@@ -3,7 +3,7 @@ with a trailing slash). Useful for getting the lay of the land before globbing."
 
 from .base import Tool
 
-_SKIP = {".git", ".svn", ".hg", "__pycache__", ".venv", "node_modules"}
+_SKIP = {".git", ".svn", ".hg", "__pycache__", ".venv", "node_modules", ".agent-backups"}
 
 
 def _list_dir(args, sandbox):

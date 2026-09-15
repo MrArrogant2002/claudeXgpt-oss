@@ -529,7 +529,7 @@ class App:
             self._p(render.system_note(f"exec is {state}  (use: /exec on|off)"))
             return
         config.ALLOW_EXEC = want
-        self.registry = default_registry()  # add/remove the bash tool
+        self.registry = default_registry(project_root=str(self.sandbox.root))  # add/remove the bash tool
         self._p(render.system_note(f"exec = {'on ⚠' if want else 'off'}"))
 
     def _print_help(self):

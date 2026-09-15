@@ -86,7 +86,7 @@ def main():
         sys.exit(1)
 
     sandbox = Sandbox(args.project)
-    registry = default_registry()  # includes `bash` iff config.ALLOW_EXEC
+    registry = default_registry(project_root=str(sandbox.root))  # bash iff ALLOW_EXEC; lsp iff a server matches the repo
     n_ctx = inference.context_size() or config.CONTEXT_TOKENS
     print(f"[project] {sandbox.root}", file=sys.stderr)
     print(f"[context] window ~{n_ctx} tokens", file=sys.stderr)

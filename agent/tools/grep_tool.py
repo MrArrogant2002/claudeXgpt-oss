@@ -21,6 +21,7 @@ _IGNORE_DIRS = {
     ".venv",
     "venv",
     "__pycache__",
+    ".agent-backups",
 }
 
 from .base import Tool

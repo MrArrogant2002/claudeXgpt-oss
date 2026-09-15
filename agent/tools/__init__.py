@@ -17,7 +17,7 @@ from .read_tool import read_tool
 __all__ = ["Registry", "Tool", "default_registry"]
 
 
-def default_registry(allow_exec=None, allow_edit=None) -> Registry:
+def default_registry(allow_exec=None, allow_edit=None, project_root=None) -> Registry:
     """Build the tool registry. The read-only navigation tools are always present.
     The `bash` tool (arbitrary command execution) is added ONLY when execution is
     enabled — `allow_exec=True`, or (when None) config.ALLOW_EXEC — so a default
@@ -38,8 +38,16 @@ def default_registry(allow_exec=None, allow_edit=None) -> Registry:
     reg.register(read_tool)  # deep  — read the lines that matter
     if allow_exec:
         reg.register(bash_tool)  # execute — compile/lint/test to find real errors
-    if not os.environ.get("AGENT_DISABLE_LSP") and lsp_servers.any_available():
-        reg.register(lsp_tool)  # resolve — precise defs/refs/types via a language server
+    # Register `lsp` only when a language server for THIS project's dominant language
+    # is installed — not merely when *some* server exists — so it isn't offered for,
+    # say, a Java repo with no jdtls (where every call would just say "no server").
+    if not os.environ.get("AGENT_DISABLE_LSP"):
+        try:
+            has_lsp = lsp_servers.dominant_language(project_root or config.PROJECT_ROOT) is not None
+        except Exception:
+            has_lsp = False
+        if has_lsp:
+            reg.register(lsp_tool)  # resolve — precise defs/refs/types via a language server
     if allow_edit:
         reg.register(edit_tool)  # change — permission-gated file edits
         reg.register(write_tool)

@@ -24,14 +24,7 @@ _READ_RANGE_KEYS = {"start_line", "end_line", "line_start", "line_end", "start",
 _GREP_ONLY_KEYS = {"query", "max_matches", "ignore_case"}
 
 
-def _extract_json_obj(content):
-    """Return the dict if `content` is (or wraps) a single bare JSON object, else None."""
-    s = content.strip()
-    if s.startswith("```"):
-        s = s.strip("`")
-        if s[:4].lower() == "json":
-            s = s[4:]
-        s = s.strip()
+def _try_json(s):
     if not (s.startswith("{") and s.endswith("}")):
         return None
     try:
@@ -41,27 +34,82 @@ def _extract_json_obj(content):
     return obj if isinstance(obj, dict) and obj else None
 
 
+def _extract_json_obj(content):
+    """Return a JSON object from `content` — either the whole (possibly fenced) string,
+    OR one embedded at the end of a reasoning sentence (gpt-oss writes
+    `…let's read it.{"path":"x"}`). Returns the dict, else None."""
+    s = (content or "").strip()
+    if s.startswith("```"):
+        s = s.strip("`").strip()
+        if s[:4].lower() == "json":
+            s = s[4:].strip()
+    obj = _try_json(s)
+    if obj is not None:
+        return obj
+    # embedded object: scan from the first '{' up to the last '}'.
+    end = s.rfind("}")
+    if end != -1:
+        for i, ch in enumerate(s):
+            if ch == "{":
+                obj = _try_json(s[i : end + 1])
+                if obj is not None:
+                    return obj
+    return None
+
+
 def _infer_leaked_call(content, registry):
-    """If `content` is bare tool-argument JSON, return (tool_name, args) for an
-    unambiguously identified tool, else None. Recovers a turn where the model wrote
-    a tool call as reasoning text (no recipient) instead of a real tool call."""
+    """If `content` carries tool-argument JSON, return (tool_name, args) for an
+    unambiguously identified tool, else None. Recovers a turn where the model wrote a
+    tool call as reasoning text (no recipient) instead of a real tool call. Covers the
+    read/grep/glob funnel plus bash / lsp / edit / write / multi_edit."""
     args = _extract_json_obj(content)
     if args is None:
         return None
     keys = set(args)
-    if keys & _READ_RANGE_KEYS and "path" in args and registry.get("read"):
+    has = registry.get
+    if keys & _READ_RANGE_KEYS and "path" in args and has("read"):
         return "read", args
-    # glob: has `limit` + `pattern` and none of grep's distinctive keys.
-    if {"pattern", "limit"} <= keys and not (keys & _GREP_ONLY_KEYS) and registry.get("glob"):
+    if "command" in keys and has("bash"):
+        return "bash", args
+    if "op" in keys and has("lsp"):
+        return "lsp", args
+    if "edits" in keys and "path" in keys and has("multi_edit"):
+        return "multi_edit", args
+    if "content" in keys and "path" in keys and has("write"):
+        return "write", args
+    if {"old_string", "new_string"} <= keys and "path" in keys and has("edit"):
+        return "edit", args
+    if {"pattern", "limit"} <= keys and not (keys & _GREP_ONLY_KEYS) and has("glob"):
         return "glob", args
-    # grep: a grep-distinctive key, or a bare pattern/query search.
-    if (keys & _GREP_ONLY_KEYS or "pattern" in keys or "query" in keys) and registry.get("grep"):
+    if (keys & _GREP_ONLY_KEYS or "pattern" in keys or "query" in keys) and has("grep"):
         a = dict(args)
         if "pattern" not in a and "query" in a:  # model used the wrong param name
             a["pattern"] = a.pop("query")
         if "pattern" in a:
             return "grep", a
     return None
+
+
+def _run_tool_call(registry, name, args, sandbox, can_use_tool, on_event):
+    """Run one tool call through the permission gate. Shared by the normal tool-call
+    path and the leaked-call recovery, so mutating tools are ALWAYS gated. Errors and
+    permission denials come back as data (a string), never as an exception."""
+    tool = registry.get(name)
+    if tool is None:
+        return f"ERROR: unknown tool '{name}'"
+    if can_use_tool is not None and getattr(tool, "check_permissions", None):
+        decision = can_use_tool(tool, args, sandbox)
+        if decision is not None and getattr(decision, "behavior", "allow") == "deny":
+            if on_event:
+                on_event({
+                    "role": "system", "channel": None, "recipient": None,
+                    "content": f"[permission] denied {name}: {getattr(decision, 'reason', '')}",
+                })
+            return f"Permission denied: {getattr(decision, 'reason', '') or 'not allowed'}"
+    try:
+        return tool.run(args, sandbox)
+    except Exception as e:  # errors are DATA, not crashes
+        return f"ERROR: {type(e).__name__}: {e}"
 
 DEFAULT_INSTRUCTIONS = (
     "You are a coding assistant working inside a code repository. "
@@ -87,6 +135,13 @@ DEFAULT_INSTRUCTIONS = (
     "before describing it — a short `read` of its top or a `grep` of its main definitions "
     "is enough; you need not read every file in full. If you must infer something you did "
     "not verify, say so explicitly instead of presenting it as fact.\n"
+    "- NEVER invent or guess a tool's output. Only report what a tool actually returned "
+    "this turn; do not show example/expected outputs as if they were real.\n"
+    "- Do NOT create, edit, or overwrite files unless the user explicitly asked you to "
+    "change something. Explaining, testing, or demonstrating a tool is NOT a request to "
+    "modify the repository.\n"
+    "- Answer in PLAIN TEXT for a terminal: short paragraphs and simple `- ` bullets. Avoid "
+    "Markdown tables and heavy formatting — they do not render in a terminal.\n"
     "Always finish with a clear final answer in plain text, grounded in the code you read."
 )
 
@@ -364,37 +419,12 @@ def run_turn(
             for call in tool_calls:
                 recipient = call["recipient"]  # e.g. "functions.read"
                 name = recipient.split(".")[-1]
-                tool = registry.get(name)
-                if tool is None:
-                    result = f"ERROR: unknown tool '{name}'"
+                try:
+                    args = json.loads(call["content"]) if call["content"] else {}
+                except json.JSONDecodeError as e:
+                    result = f"ERROR: invalid JSON arguments: {e}"
                 else:
-                    try:
-                        args = json.loads(call["content"]) if call["content"] else {}
-                    except json.JSONDecodeError as e:
-                        result = f"ERROR: invalid JSON arguments: {e}"
-                    else:
-                        # Permission gate: only fires for tools that declare
-                        # check_permissions (the write tools) — bash and read-only
-                        # tools are never gated here, so their behavior is unchanged.
-                        decision = None
-                        if can_use_tool is not None and getattr(tool, "check_permissions", None):
-                            decision = can_use_tool(tool, args, sandbox)
-                        if decision is not None and getattr(decision, "behavior", "allow") == "deny":
-                            result = f"Permission denied: {getattr(decision, 'reason', '') or 'not allowed'}"
-                            if on_event:
-                                on_event(
-                                    {
-                                        "role": "system",
-                                        "channel": None,
-                                        "recipient": None,
-                                        "content": f"[permission] denied {name}: {getattr(decision, 'reason', '')}",
-                                    }
-                                )
-                        else:
-                            try:
-                                result = tool.run(args, sandbox)
-                            except Exception as e:  # errors are DATA, not crashes
-                                result = f"ERROR: {type(e).__name__}: {e}"
+                    result = _run_tool_call(registry, name, args, sandbox, can_use_tool, on_event)
                 result = context.budget(result)
                 history.append(hc.tool_result_message(recipient, result))
                 if on_event:
@@ -430,11 +460,9 @@ def run_turn(
         if leaked:
             name, args = leaked
             recipient = f"functions.{name}"
-            try:
-                result = registry.get(name).run(args, sandbox)
-            except Exception as e:  # errors are DATA, not crashes
-                result = f"ERROR: {type(e).__name__}: {e}"
-            result = context.budget(result)
+            result = context.budget(
+                _run_tool_call(registry, name, args, sandbox, can_use_tool, on_event)
+            )
             history.append(hc.tool_result_message(recipient, result))
             if on_event:
                 on_event(
