@@ -57,3 +57,7 @@ vendor/tiktoken/*
 
 # Reversible backups written by the edit/write tools (per-project).
 .agent-backups/
+
+# `local init` machine-state sidecar (the human-readable local_mind.md is yours to
+# keep/commit; this fingerprint is regenerated and would only add diff noise).
+.local_mind.sig.json

@@ -59,6 +59,12 @@ def main():
         help="enable the write tools (edit/write/multi_edit); OFF by default",
     )
     ap.add_argument(
+        "--init",
+        action="store_true",
+        help="build local_mind.md (the project map, like CLAUDE.md) and exit. "
+        "Equivalent to passing `init` as the question.",
+    )
+    ap.add_argument(
         "--permission-mode",
         default=config.PERMISSION_MODE,
         choices=["plan", "default", "acceptEdits", "bypassPermissions", "dontAsk"],
@@ -175,6 +181,47 @@ def main():
         if salvaged:
             line += f" | salvaged {salvaged} malformed header(s)"
         print(line, file=sys.stderr)
+
+    # `local init` — scan the repo and write local_mind.md, then exit.
+    do_init = args.init or (
+        len(args.question) == 1 and args.question[0].lower() in ("init", "local-init")
+    )
+    if do_init:
+        from agent import project_mind
+
+        print(
+            f"[init] scanning {sandbox.root} to build {project_mind.MIND_FILENAME} "
+            "(this can take a few minutes on a large repo)…",
+            file=sys.stderr,
+        )
+        res, _ = loop.run_turn(
+            project_mind.INIT_PROMPT,
+            [],
+            registry,
+            sandbox,
+            reasoning="high",
+            instructions=project_mind.INIT_INSTRUCTIONS,
+            on_event=on_event,
+            context_tokens=n_ctx,
+            max_turns=max(config.MAX_TURNS, project_mind.INIT_MAX_TURNS),
+            load_mind=False,  # don't feed the old map into the run that rebuilds it
+        )
+        if res.reason == "completed" and (res.answer or "").strip():
+            path, sig = project_mind.save(sandbox.root, res.answer)
+            print(
+                f"[init] wrote {path} ({sig['file_count']} files scanned). "
+                "Future queries will use it automatically.",
+                file=sys.stderr,
+            )
+            print(str(path))  # stdout = the artifact path, for scripting
+        else:
+            print(
+                f"[init] the model did not produce a document ({res.reason}). "
+                "Try again with --reasoning high or a larger AGENT_MAX_TOKENS.",
+                file=sys.stderr,
+            )
+            sys.exit(2)
+        return
 
     # one-shot
     if args.question:

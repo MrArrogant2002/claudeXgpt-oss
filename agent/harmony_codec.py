@@ -165,18 +165,34 @@ _MSG_RE = re.compile(
 _CHANNEL_RE = re.compile(r"^\s*([A-Za-z_]+)")
 _RECIPIENT_RE = re.compile(r"to=([A-Za-z0-9_.\-]+)")
 _CONSTRAIN_RE = re.compile(r"<\|constrain\|>\w+")
+# Any Harmony special token, e.g. <|end|>, <|channel|>, <|constrain|>json, <|call|>.
+# Used to scrub markers that leak into a salvaged body so we never hand raw
+# control tokens back to the model as if they were content.
+_SPECIAL_RE = re.compile(r"<\|[^|>]*\|>")
+# Valid Harmony channels — used to tell a leaked channel word apart from real text.
+_KNOWN_CHANNELS = {"analysis", "commentary", "final"}
+
+
+def _strip_specials(text: str) -> str:
+    return _SPECIAL_RE.sub("", text)
 
 
 def _lenient_parse(output_token_ids):
-    """Fallback when the strict Harmony parser rejects a malformed header.
+    """Fallback when the strict Harmony parser can't parse a completion.
 
     gpt-oss-20b occasionally emits a corrupted tool-call header — most commonly
     a duplicated recipient (`to=functions.read to=functions.read`), which the
     official parser refuses whole (strict OR non-strict). We decode the tokens
     back to text and re-extract channel / recipient / body with tolerant regexes
-    (taking the FIRST `to=` and dropping stray `<|constrain|>` junk), then rebuild
-    real Message objects so history still renders on the next turn. Returns a
-    (possibly empty) list of Messages — the caller decides what to do if empty.
+    (taking the FIRST `to=` and scrubbing stray special tokens), then rebuild real
+    Message objects so history still renders on the next turn.
+
+    Two extra safety nets so we never silently DROP a whole completion:
+      * a body is scrubbed of every `<|...|>` marker, not just `<|constrain|>`;
+      * if no `<|channel|>…<|message|>` block is present at all (the model went
+        fully off-format and emitted bare text), the leftover text is returned as
+        a single `final` message instead of nothing.
+    Returns a (possibly empty) list of Messages — the caller decides on empty.
     """
     text = _ENC.decode(output_token_ids)
     msgs = []
@@ -186,28 +202,45 @@ def _lenient_parse(output_token_ids):
         channel = ch.group(1) if ch else None
         to = _RECIPIENT_RE.search(hdr)  # first occurrence only -> dedups
         recipient = to.group(1) if to else None
-        body = _CONSTRAIN_RE.sub("", body).strip()
+        body = _strip_specials(body).strip()  # scrub ALL leaked markers, not just constrain
         msg = Message.from_role_and_content(Role.ASSISTANT, body)
         if channel:
             msg = msg.with_channel(channel)
         if recipient:
             msg = msg.with_recipient(recipient)
         msgs.append(msg)
+
+    if not msgs:
+        # No well-formed channel/message blocks — but the model may still have
+        # written a plain-text answer with no markers. Salvage it as `final` so a
+        # real answer isn't thrown away (which would look like an "empty" turn).
+        leftover = _strip_specials(text).strip()
+        # Drop a lone leading channel word ("final", "analysis") if it survived.
+        first = leftover.split(None, 1)
+        if first and first[0].lower() in _KNOWN_CHANNELS:
+            leftover = first[1].strip() if len(first) > 1 else ""
+        if leftover:
+            msgs.append(
+                Message.from_role_and_content(Role.ASSISTANT, leftover).with_channel(
+                    "final"
+                )
+            )
     return msgs
 
 
 def parse(output_token_ids):
     """Raw output token IDs -> list[Message] split across channels.
 
-    Tries the strict official parser first; if it rejects a malformed header,
-    falls back to a lenient regex parse so a single bad completion doesn't crash
-    the agent. Raises ParseError only if nothing at all can be salvaged."""
+    Tries the strict official parser first; if it rejects the output (a malformed
+    header, or any lower-level error surfaced by the Rust binding), falls back to a
+    lenient regex parse so a single bad completion doesn't crash the agent. Raises
+    ParseError only if nothing at all can be salvaged."""
     global SALVAGE_COUNT
     try:
         return _ENC.parse_messages_from_completion_tokens(
             output_token_ids, Role.ASSISTANT
         )
-    except HarmonyError as e:
+    except Exception as e:  # HarmonyError, or any binding-level error -> try salvage
         salvaged = _lenient_parse(output_token_ids)
         if salvaged:
             SALVAGE_COUNT += 1
@@ -224,9 +257,20 @@ class StreamDecoder:
 
     def __init__(self):
         self._sp = StreamableParser(_ENC, role=Role.ASSISTANT)
+        self._broken = False
 
     def push(self, token_id):
-        self._sp.process(token_id)
+        # A single malformed token must never kill the turn: streaming is display
+        # only, and the authoritative parse() on the full token list (with salvage)
+        # still runs at the end. If the parser trips, we stop emitting deltas but
+        # keep accepting tokens so the caller can still collect the full output.
+        if self._broken:
+            return None, ""
+        try:
+            self._sp.process(token_id)
+        except Exception:
+            self._broken = True
+            return getattr(self._sp, "current_channel", None), ""
         return self._sp.current_channel, (self._sp.last_content_delta or "")
 
 

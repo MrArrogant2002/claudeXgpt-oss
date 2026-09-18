@@ -248,6 +248,7 @@ def run_turn(
     stream=False,
     on_delta=None,
     can_use_tool=None,
+    load_mind=True,
 ):
     """Run one user turn to completion. Returns (Result, updated_history).
 
@@ -268,6 +269,24 @@ def run_turn(
         instructions = instructions + EXEC_INSTRUCTIONS
     if registry.get("edit"):  # write tier enabled -> teach the model to use it
         instructions = instructions + EDIT_INSTRUCTIONS
+
+    # Auto-load the project map (local_mind.md), like Claude Code loads CLAUDE.md, so
+    # every query starts oriented. Skipped during `local init` itself (load_mind=False)
+    # so we don't feed a stale map back into the run that regenerates it.
+    if load_mind and config.USE_LOCAL_MIND:
+        try:
+            from . import project_mind
+
+            mind = project_mind.mind_context(getattr(sandbox, "root", None))
+        except Exception:
+            mind = ""
+        if mind:
+            instructions = instructions + (
+                "\n\nPROJECT CONTEXT (from local_mind.md — a prior analysis of THIS "
+                "repository). Use it to orient quickly, but still verify specifics with "
+                "the tools before relying on them, since the code may have changed since "
+                "it was written:\n" + mind
+            )
 
     # New user turn: drop stale chain-of-thought from prior turns, then add input.
     history = context.drop_stale_cot(history)

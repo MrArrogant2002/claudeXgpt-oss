@@ -23,13 +23,27 @@ def _pick(args, *names):
 
 
 def _read(args, sandbox):
-    p = sandbox.resolve(args["path"])
+    rel = _pick(args, "path", "file_path", "filename")
+    if not rel:
+        return "ERROR: read requires a 'path'"
+    p = sandbox.resolve(rel)
+    if not p.exists():
+        return f"(no such file: {rel})"
+    if p.is_dir():
+        return f"ERROR: {rel} is a directory — use list_dir to see its entries, or read a file inside it."
+
+    from .. import edits
+
     text = p.read_text(encoding="utf-8", errors="replace")
+    if edits.looks_binary(text):
+        size = p.stat().st_size
+        return (
+            f"(binary file: {sandbox.relativize(p)}, {size} bytes — not shown. "
+            "Reading it as text would be meaningless; use grep for embedded strings if needed.)"
+        )
     # Record the full-file hash so the write tools can enforce read-before-write /
     # freshness. No effect on what read returns; harmless when editing is disabled.
     try:
-        from .. import edits
-
         edits.record_read(p, text)
     except Exception:
         pass

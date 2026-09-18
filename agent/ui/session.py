@@ -26,6 +26,7 @@ except Exception:  # prompt_toolkit not installed
 # Slash commands offered by autocomplete (label -> one-line meta).
 COMMANDS = {
     "/help": "show help",
+    "/init": "scan the repo and build local_mind.md (project map)",
     "/reasoning": "set reasoning effort: low | medium | high",
     "/show-reasoning": "toggle showing the model's thinking",
     "/exec": "enable/disable the bash (run code) tool: on | off",

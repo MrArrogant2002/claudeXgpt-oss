@@ -81,6 +81,24 @@ def hit_output_limit(data) -> bool:
     return False
 
 
+def _sampling(temperature=None):
+    """Sampling parameters sent on every /completion. temperature and top_p are
+    always sent (so they're set together, not left to the server default); top_k /
+    min_p / repeat_penalty are sent only when tuned away from their neutral values,
+    so a default run doesn't override the server's own settings."""
+    params = {
+        "temperature": config.TEMPERATURE if temperature is None else temperature,
+        "top_p": config.TOP_P,
+    }
+    if config.TOP_K > 0:
+        params["top_k"] = config.TOP_K
+    if config.MIN_P > 0:
+        params["min_p"] = config.MIN_P
+    if config.REPEAT_PENALTY != 1.0:
+        params["repeat_penalty"] = config.REPEAT_PENALTY
+    return params
+
+
 def complete(
     prefill_ids, stop_ids=None, max_tokens=None, temperature=None, cache_prompt=True
 ):
@@ -93,9 +111,9 @@ def complete(
     body = {
         "prompt": prefill_ids,  # array of token IDs — no templating applied
         "n_predict": config.MAX_TOKENS if max_tokens is None else max_tokens,
-        "temperature": config.TEMPERATURE if temperature is None else temperature,
         "cache_prompt": cache_prompt,  # reuse KV cache across turns (speed)
         "return_tokens": True,  # <-- include output token IDs in the response
+        **_sampling(temperature),
     }
     try:
         r = requests.post(
@@ -182,10 +200,10 @@ def complete_stream(
     body = {
         "prompt": prefill_ids,
         "n_predict": config.MAX_TOKENS if max_tokens is None else max_tokens,
-        "temperature": config.TEMPERATURE if temperature is None else temperature,
         "cache_prompt": cache_prompt,
         "return_tokens": True,
         "stream": True,
+        **_sampling(temperature),
     }
     try:
         resp = requests.post(
