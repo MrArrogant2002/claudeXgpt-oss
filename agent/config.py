@@ -18,6 +18,11 @@ PROPS_URL = BASE_URL + "/props"
 MODEL = os.environ.get("AGENT_MODEL", "gpt-oss-20b")  # informational only
 REASONING_EFFORT = os.environ.get("AGENT_REASONING", "medium")  # low | medium | high
 MAX_TOKENS = int(os.environ.get("AGENT_MAX_TOKENS", "4096"))
+# Hard ceiling the empty-final/truncation recovery may escalate n_predict to. Kept
+# at least as high as MAX_TOKENS so raising AGENT_MAX_TOKENS never gets clamped DOWN
+# on a truncation retry. Raise it for long high-reasoning runs (costs latency, not
+# correctness); keep it well under the server context window.
+MAX_TOKENS_CAP = int(os.environ.get("AGENT_MAX_TOKENS_CAP", str(max(8192, MAX_TOKENS))))
 
 # --- sampling ---------------------------------------------------------------
 # gpt-oss is quantization-aware trained and its examples run temperature=1.0,

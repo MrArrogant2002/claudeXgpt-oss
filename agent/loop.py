@@ -185,6 +185,51 @@ EDIT_INSTRUCTIONS = (
 MAX_EMPTY_RECOVERY = 3
 
 
+def _synthesize_final(history, reasoning, instructions, on_event, cancel):
+    """Last-resort recovery for gpt-oss's 'analysis-only, empty final' turns: force a
+    TOOLLESS final answer. Re-rendering the SAME history with tools=None removes the
+    model's option to keep deferring into 'let me explore a bit more', so it writes the
+    answer now from what history already holds. This is the fix for a run that spins on
+    `[recover] empty final (truncated=False)` and then gives up with no answer.
+
+    Returns the final text, or '' if it still produced none."""
+    if cancel is not None and cancel.is_set():
+        return ""
+    hist = list(history)
+    hist.append(
+        hc.user_message(
+            "Stop exploring — no tools are available now. Using ONLY the information "
+            "already gathered above, write the COMPLETE final answer immediately. If the "
+            "task was to produce a document, output the entire document and nothing else."
+        )
+    )
+    prefill_ids, stop_ids = hc.render(
+        hist, tools=None, reasoning=reasoning, instructions=instructions
+    )
+    try:
+        out_tokens, _ = inference.complete(
+            prefill_ids, stop_ids=stop_ids, max_tokens=config.MAX_TOKENS_CAP
+        )
+        msgs = hc.parse(out_tokens)
+    except Exception:
+        return ""
+    fields = [hc.msg_fields(m) for m in msgs]
+    if on_event:
+        for f in fields:
+            on_event(f)
+    answer = "".join(f["content"] for f in fields if f["channel"] == "final").strip()
+    if answer:
+        return answer
+    # Still no final channel: gpt-oss occasionally leaves the whole answer in analysis.
+    # Returning the longest analysis message beats returning nothing at all.
+    analyses = [
+        f["content"].strip()
+        for f in fields
+        if f["channel"] == "analysis" and f["content"].strip()
+    ]
+    return max(analyses, key=len) if analyses else ""
+
+
 def _push_final_if_near_limit(history, turn, max_turns, on_event):
     """When almost out of steps, tell the model to synthesize now instead of
     reading more. Shared by the tool-call and leaked-call recovery paths."""
@@ -507,6 +552,16 @@ def run_turn(
         # Empty final: the model gave up early or got cut off mid-thought.
         # Recover instead of returning nothing — bounded to avoid infinite loops.
         if empty_recovery >= MAX_EMPTY_RECOVERY:
+            # Before giving up, force one TOOLLESS synthesis turn — this rescues the
+            # common gpt-oss failure where it reasons but never emits a final/tool call.
+            answer = _synthesize_final(history, reasoning, instructions, on_event, cancel)
+            if answer:
+                if on_event:
+                    on_event({
+                        "role": "system", "channel": None, "recipient": None,
+                        "content": "[recover] forced tool-less synthesis -> final answer",
+                    })
+                return Result("completed", answer, turn), history
             return Result("no_answer", "", turn), history
         empty_recovery += 1
 
@@ -522,7 +577,7 @@ def run_turn(
         # Tool results stay in history, so what it already found is preserved.
         history = context.drop_stale_cot(history)
         if truncated:
-            max_tokens = min(max_tokens * 2, 8192)
+            max_tokens = min(max_tokens * 2, config.MAX_TOKENS_CAP)
             nudge = (
                 "Your previous response was cut off before you gave an answer. "
                 "Continue: if you still need information, call a tool (read the actual "
@@ -563,4 +618,14 @@ def run_turn(
                 }
             )
 
+    # Ran out of tool-loop steps without a final answer — try one tool-less synthesis
+    # from everything gathered before reporting failure.
+    answer = _synthesize_final(history, reasoning, instructions, on_event, cancel)
+    if answer:
+        if on_event:
+            on_event({
+                "role": "system", "channel": None, "recipient": None,
+                "content": "[recover] hit max turns -> tool-less synthesis produced an answer",
+            })
+        return Result("completed", answer, max_turns), history
     return Result("max_turns", "", max_turns), history
