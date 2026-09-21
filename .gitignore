@@ -61,3 +61,7 @@ vendor/tiktoken/*
 # `local init` machine-state sidecar (the human-readable local_mind.md is yours to
 # keep/commit; this fingerprint is regenerated and would only add diff noise).
 .local_mind.sig.json
+
+# Eval harness outputs (per-run reports + throwaway fixture copies).
+tests/eval/reports/
+tests/eval/.work/

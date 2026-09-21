@@ -9,6 +9,7 @@ can pipe just the answer:  python cli.py "..." 2>/dev/null
 """
 
 import argparse
+import json
 import sys
 
 from agent import config, harmony_codec as hc, inference, loop, permissions
@@ -47,6 +48,12 @@ def main():
         help="print the analysis channel (debug)",
     )
     ap.add_argument("--quiet", action="store_true", help="hide the tool-call trace")
+    ap.add_argument(
+        "--json",
+        action="store_true",
+        help="one-shot only: print a single JSON summary (answer + metrics) to stdout "
+        "and nothing else. For scripting and the eval harness.",
+    )
     ap.add_argument(
         "--allow-exec",
         action="store_true",
@@ -221,6 +228,43 @@ def main():
                 file=sys.stderr,
             )
             sys.exit(2)
+        return
+
+    # JSON summary mode (one-shot, machine-readable) — used by the eval harness.
+    if args.json:
+        if not args.question:
+            print(json.dumps({"error": "no question provided"}))
+            return
+        counts = {"recoveries": 0}
+
+        def on_event_json(f):
+            content = f.get("content") or ""
+            if f.get("role") == "system" and content.startswith("[recover]"):
+                counts["recoveries"] += 1
+
+        before = inference.usage_snapshot()
+        res, _ = loop.run_turn(
+            " ".join(args.question),
+            [],
+            registry,
+            sandbox,
+            reasoning=args.reasoning,
+            on_event=on_event_json,
+            context_tokens=n_ctx,
+            can_use_tool=(engine.can_use_tool if engine else None),
+        )
+        after = inference.usage_snapshot()
+        print(json.dumps({
+            "reason": res.reason,
+            "answer": res.answer,
+            "turns": res.turns,
+            "prompt_tokens": after["prompt"] - before["prompt"],
+            "prompt_new": after["prompt_new"] - before["prompt_new"],
+            "output_tokens": after["output"] - before["output"],
+            "calls": after["calls"] - before["calls"],
+            "salvaged": hc.salvage_count(),
+            "recoveries": counts["recoveries"],
+        }))
         return
 
     # one-shot
