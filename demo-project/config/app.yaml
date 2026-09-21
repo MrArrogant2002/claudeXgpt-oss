@@ -1,0 +1,9 @@
+# Nimbus runtime configuration (demo defaults; overridable via env — see .env.example).
+api:
+  host: 0.0.0.0
+  port: 8000
+  max_url_length: 2048
+worker:
+  flush_interval_seconds: 30
+web:
+  api_base: http://localhost:8000

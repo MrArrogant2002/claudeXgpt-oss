@@ -1,0 +1,14 @@
+{
+  "name": "nimbus-web",
+  "version": "0.4.2",
+  "private": true,
+  "description": "Nimbus web client — link form + stats panel",
+  "type": "commonjs",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node test/format.test.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

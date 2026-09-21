@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - NIMBUS_DB=/data/nimbus.db
+    ports:
+      - "8000:8000"
+    volumes:
+      - nimbus-data:/data
+
+  worker:
+    build:
+      context: ./services/worker
+    depends_on:
+      - api
+
+volumes:
+  nimbus-data:
