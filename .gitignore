@@ -65,3 +65,4 @@ vendor/tiktoken/*
 # Eval harness outputs (per-run reports + throwaway fixture copies).
 tests/eval/reports/
 tests/eval/.work/
+Springer_Nature_LaTeX_Template

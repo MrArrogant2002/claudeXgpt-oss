@@ -1,7 +1,0 @@
-__pycache__/
-*.pyc
-dist/
-node_modules/
-*.db
-nimbus.db
-.env
