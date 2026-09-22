@@ -3,6 +3,10 @@
 Design notes, research, and build plans for the Local Code Agent.
 For **installation and usage**, see the [run guide](../README.md) at the repo root.
 
+**New here?** Start with [project-construction-notes.md](project-construction-notes.md) —
+a from-scratch build guide (dependencies, llama.cpp, tokenizer, model), what every
+component does, the order it was built in, and a curated reading list of related papers.
+
 ## Architecture — [`architecture/`](architecture/)
 
 | Doc | What it covers |
