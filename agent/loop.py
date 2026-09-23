@@ -109,67 +109,35 @@ def _run_tool_call(registry, name, args, sandbox, can_use_tool, on_event):
     except Exception as e:  # errors are DATA, not crashes
         return f"ERROR: {type(e).__name__}: {e}"
 
+# Terse on purpose: the model is instruction-tuned. A short prompt also frees context
+# on a small window. Note it does NOT force tool use — the model decides when to search.
 DEFAULT_INSTRUCTIONS = (
-    "You are a coding assistant working inside a code repository. "
-    "Answer questions by first investigating the code with the tools, then explaining. "
-    "Funnel (cheap to expensive): `list_dir` to orient, `glob` to locate files by name, "
-    "`grep` to find where a symbol or behavior is defined, and `read` to read the specific "
-    "lines. Do the minimum needed: if the question only asks WHERE something is, a glob or "
-    "grep result is enough — do not read a file unless you actually need its contents. "
-    "Prefer the actual IMPLEMENTATION/source files over test or config files when "
-    "explaining how something works — read the module that DEFINES the behavior, not "
-    "just its tests. Follow imports and references across files as needed. "
-    "If your grep results are dominated by tests, config, or docs, refine the search to "
-    "the source directory or search for the definition (e.g. 'def name' / 'class name'). "
-    "\n\nGROUNDING RULES (important):\n"
-    "- Base every statement on what the tools actually returned. Do NOT describe a file, "
-    "class, or function you have not opened or grepped.\n"
-    "- Even if you recognize the project (a well-known library or framework), do NOT "
-    "answer from memory — the code in THIS repository may differ from what you remember. "
-    "Verify with the tools before stating anything about it.\n"
-    "- When you state what a specific file/class/function does, cite it by path (and line "
-    "range when useful) so the answer is verifiable.\n"
-    "- For a broad 'explain the whole codebase' request, quickly ground each key module "
-    "before describing it — a short `read` of its top or a `grep` of its main definitions "
-    "is enough; you need not read every file in full. If you must infer something you did "
-    "not verify, say so explicitly instead of presenting it as fact.\n"
-    "- NEVER invent or guess a tool's output. Only report what a tool actually returned "
-    "this turn; do not show example/expected outputs as if they were real.\n"
-    "- Do NOT create, edit, or overwrite files unless the user explicitly asked you to "
-    "change something. Explaining, testing, or demonstrating a tool is NOT a request to "
-    "modify the repository.\n"
-    "- Answer in PLAIN TEXT for a terminal: short paragraphs and simple `- ` bullets. Avoid "
-    "Markdown tables and heavy formatting — they do not render in a terminal.\n"
-    "Always finish with a clear final answer in plain text, grounded in the code you read."
+    "You are a code agent working inside a repository. Check the code with the tools "
+    "(list_dir, glob, grep, read) before stating facts about it, and cite paths. "
+    "When a question is about you, or cannot be answered from the repo, answer directly "
+    "without searching. Reply in short plain text; do not modify files unless asked."
 )
 
-# Appended to the instructions only when the `bash` tool is available (execution
-# enabled), so we never tell the model to use a tool it doesn't have.
+# Appended only when the matching tools are registered, so we never name a tool the
+# model doesn't have. Kept terse.
 EXEC_INSTRUCTIONS = (
-    "\n\nYou also have a `bash` tool that runs shell commands in the project root. "
-    "When the task is to build, reproduce, find, or fix errors, USE IT: compile / "
-    "lint / type-check / test the code (e.g. `python -m py_compile file.py`, "
-    "`pytest -x -q`, `ruff check .`, `tsc --noEmit`, `cargo check`), then read the "
-    "failing command's stderr and `read` the cited file:line to ground your "
-    "explanation. A non-zero exit code means failure. Do not install packages, push, "
-    "or use the network — run checks only."
+    " You can run shell commands with `bash` (build/lint/test, then read the errors); "
+    "checks only — no installs or network."
 )
 
-# Appended only when the write tools are registered (editing enabled). Every edit is
-# permission-gated; a denied edit comes back as data, not a crash.
 EDIT_INSTRUCTIONS = (
-    "\n\nYou also have write tools: `edit` (replace an exact, unique `old_string` in a file), "
-    "`write` (create/overwrite a file), and `multi_edit` (several edits to one file atomically). "
-    "You MUST `read` a file before editing it. Keep changes minimal and targeted — prefer a small "
-    "`edit` over rewriting a whole file. Edits require permission and may be denied (that's data, "
-    "not an error — do not retry blindly). After changing code, run the tests/compile with `bash` "
-    "(if available) and fix any failures before finishing."
+    " You can change files with `edit`/`write`/`multi_edit` (read a file before editing it); "
+    "edits need permission and may be denied."
 )
 
 # Bound how many CONSECUTIVE empty-final turns we tolerate before giving up. The
 # counter resets whenever the model makes a tool call (real progress), so a long
 # multi-file exploration with the occasional narration turn won't trip it.
 MAX_EMPTY_RECOVERY = 3
+# Once the model has taken this many tool steps in a turn, an empty final means it is
+# thrashing (gathered enough but won't commit), so we force synthesis instead of
+# nudging for yet more tool calls — the fix for the observed 18-call spirals.
+SYNTH_AFTER_STEPS = 4
 
 
 def _synthesize_final(history, reasoning, instructions, on_event, cancel):
@@ -312,10 +280,8 @@ def run_turn(
             mind = ""
         if mind:
             instructions = instructions + (
-                "\n\nPROJECT CONTEXT (from local_mind.md — a prior analysis of THIS "
-                "repository). Use it to orient quickly, but still verify specifics with "
-                "the tools before relying on them, since the code may have changed since "
-                "it was written:\n" + mind
+                "\n\nProject map (local_mind.md; verify specifics with tools as needed):\n"
+                + mind
             )
 
     # New user turn: drop stale chain-of-thought from prior turns, then add input.
@@ -327,6 +293,7 @@ def run_turn(
     max_tokens = config.MAX_TOKENS  # may escalate if the model gets cut off
     empty_recovery = 0  # bounds nudges on empty final answers
     overflow_recovery = 0  # bounds context-overflow retries
+    tool_steps = 0  # tool calls executed this turn (gates the forced-synthesis path)
 
     ctx = context_tokens or config.CONTEXT_TOKENS
     compact_threshold = int(ctx * config.COMPACT_RATIO)
@@ -487,6 +454,7 @@ def run_turn(
                     )
             # Made progress this turn — reset the consecutive-empty-final budget.
             empty_recovery = 0
+            tool_steps += len(tool_calls)
             _push_final_if_near_limit(history, turn, max_turns, on_event)
             continue
 
@@ -531,65 +499,40 @@ def run_turn(
                     }
                 )
             empty_recovery = 0  # progress: don't count this as an empty turn
+            tool_steps += 1
             _push_final_if_near_limit(history, turn, max_turns, on_event)
             continue
 
-        # Empty final: the model gave up early or got cut off mid-thought.
-        # Recover instead of returning nothing — bounded to avoid infinite loops.
-        if empty_recovery >= MAX_EMPTY_RECOVERY:
-            # Before giving up, force one TOOLLESS synthesis turn — this rescues the
-            # common gpt-oss failure where it reasons but never emits a final/tool call.
+        # Empty final: the model reasoned but didn't commit to an answer or a tool call.
+        # If it has already gathered enough (several tool steps) or repeatedly stalled,
+        # force a single TOOLLESS synthesis instead of nudging it into more tool calls —
+        # nudging-for-more-tools is what produced the observed 18-call spirals.
+        if empty_recovery >= MAX_EMPTY_RECOVERY or tool_steps >= SYNTH_AFTER_STEPS:
             answer = _synthesize_final(history, reasoning, instructions, on_event, cancel)
             if answer:
                 if on_event:
                     on_event({
                         "role": "system", "channel": None, "recipient": None,
-                        "content": "[recover] forced tool-less synthesis -> final answer",
+                        "content": "[recover] tool-less synthesis -> final answer",
                     })
                 return Result("completed", answer, turn), history
             return Result("no_answer", "", turn), history
         empty_recovery += 1
 
-        truncated = inference.hit_output_limit(raw)
-        # Did the model try to call a tool but botch the format (wrote the arguments
-        # as prose/JSON without addressing a function)? If so, nudge specifically.
-        botched_call = any(
-            _extract_json_obj(f["content"]) is not None
-            for f in fields
-            if f["channel"] in ("analysis", "commentary")
-        )
         # Drop this turn's (possibly truncated / huge) reasoning to free budget.
         # Tool results stay in history, so what it already found is preserved.
         history = context.drop_stale_cot(history)
+        truncated = inference.hit_output_limit(raw)
         if truncated:
             max_tokens = min(max_tokens * 2, config.MAX_TOKENS_CAP)
             nudge = (
-                "Your previous response was cut off before you gave an answer. "
-                "Continue: if you still need information, call a tool (read the actual "
-                "implementation file, not just its tests); otherwise write your final "
-                "answer now in plain text."
-            )
-        elif empty_recovery >= MAX_EMPTY_RECOVERY:
-            # Last chance before giving up: force synthesis, no more exploring.
-            nudge = (
-                "STOP exploring. You have gathered enough information. Do NOT call any more "
-                "tools. Write your final answer NOW, in plain text, synthesizing what you "
-                "have already read."
-            )
-        elif botched_call:
-            # It tried to call a tool but wrote the arguments as text/reasoning.
-            nudge = (
-                "It looks like you wrote tool arguments as plain text instead of calling "
-                "the tool. To use a tool you must emit it as a proper tool call addressed "
-                "to the function (e.g. call `read` or `grep`), not describe it in your "
-                "reasoning. Make the tool call now, or if you already have enough "
-                "information write your final answer in plain text."
+                "Your previous reply was cut off. Continue: call a tool if you still need "
+                "code, otherwise write the final answer in plain text."
             )
         else:
             nudge = (
-                "You have not produced a final answer yet. Either call a tool to gather "
-                "the implementation you need (prefer source files over tests/config), or "
-                "write your final answer now in plain text."
+                "You haven't answered yet. Either call one tool to get what you need, or "
+                "write the final answer now in plain text."
             )
         history.append(hc.user_message(nudge))
         if on_event:
@@ -599,7 +542,7 @@ def run_turn(
                     "channel": None,
                     "recipient": None,
                     "content": f"[recover] empty final -> nudging "
-                    f"(truncated={truncated}, max_tokens={max_tokens})",
+                    f"(truncated={truncated}, steps={tool_steps})",
                 }
             )
 
