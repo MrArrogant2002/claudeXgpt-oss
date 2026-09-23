@@ -36,15 +36,13 @@ and `-permission-model.svg`.
 | [evaluation-and-trustworthiness.md](research/evaluation-and-trustworthiness.md) | How to evaluate the agent on unknown codebases |
 | [literature-survey.xlsx](research/literature-survey.xlsx) | Reference survey (spreadsheet) |
 
-## Testing fixtures
-
-| Doc | What it covers |
-|-----|----------------|
-| [demo-project-guide.md](demo-project-guide.md) | The synthetic multi-language repo (`demo-project/`, "Nimbus") for exercising/evaluating the agent — layout, the seeded bug, and a try-this script |
-
 ## Build plans — [`plans/`](plans/)
 
 | Doc | What it covers |
 |-----|----------------|
-| [lsp-tool-build-plan.md](plans/lsp-tool-build-plan.md) | The semantic code-intelligence (LSP) tool |
 | [write-tools-build-plan.md](plans/write-tools-build-plan.md) | The permission-gated write tier (edit / write / multi_edit) |
+
+## Paper — [`../research-paper/`](../research-paper/)
+
+The ICDEC-2026 paper (Springer `sn-jnl` template): `main.tex` skeleton + `references.bib`.
+See [`../proj-conf.md`](../proj-conf.md) for the paper plan.

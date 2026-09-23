@@ -2,8 +2,9 @@
 
     python tui.py --project ./repo [--allow-exec] [--reasoning medium] [--show-reasoning]
 
-Stdlib-only, fully local (talks only to your llama-server). This is the interactive
-front-end; for a scriptable/pipe-friendly interface use cli.py instead.
+Stdlib-only at its core, fully local (talks only to your llama-server). This is the
+agent's entry point. Optional `prompt_toolkit` (requirements-ui.txt) adds input history
+and slash-command autocomplete.
 """
 
 import argparse
@@ -80,7 +81,7 @@ def main():
         sys.exit(1)
 
     sandbox = Sandbox(args.project)
-    registry = default_registry(project_root=str(sandbox.root))  # bash/edit tools per config; lsp iff a server matches the repo
+    registry = default_registry()  # read-only funnel; bash/edit tools added per config
     n_ctx = inference.context_size() or config.CONTEXT_TOKENS
 
     # Write tier: in the interactive TUI, enabling edits defaults to ASKING per edit

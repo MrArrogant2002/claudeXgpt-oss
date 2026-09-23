@@ -59,7 +59,7 @@ the session cares about.
   model (gpt-oss-20b) on a single ≤16 GB GPU with **no cloud and no third-party services**:
   client-side Harmony rendering over llama.cpp's raw endpoint, a hand-rolled single-agent
   ReAct tool-loop, a permission-gated sandbox, and **retrieval-free "navigate-don't-index"**
-  code context (glob→grep→read→LSP) plus a **staleness-aware on-device project memory**
+  code context (glob→grep→read) plus a **staleness-aware on-device project memory**
   (`local_mind.md`) — no vector DB / embedding model required.
 - **C2 — Method (headline novelty).** A **quantization-robustness layer** that restores
   agentic reliability lost to quantization on small local models: (i) tolerant Harmony
@@ -114,11 +114,11 @@ Map each component to a figure/paragraph. All of this already exists:
 | Client-side Harmony render/parse | `agent/harmony_codec.py` | protocol layer; why raw `/completion`, not a chat template |
 | Single-agent ReAct loop + recovery | `agent/loop.py` | orchestration; the robustness layer (C2) |
 | Inference client (sampling, KV) | `agent/inference.py` | serving config knobs measured in C3 |
-| Tool funnel (navigate-don't-index) | `agent/tools/` (list_dir/glob/grep/read/lsp) | retrieval-free context (C1) |
+| Tool funnel (navigate-don't-index) | `agent/tools/` (list_dir/glob/grep/read) | retrieval-free context (C1) |
 | Permission engine + sandbox | `agent/permissions.py`, `agent/sandbox.py` | security model (secondary) |
 | On-device project memory | `agent/project_mind.py` (`local_mind.md`) | staleness-aware memory (C1) |
 | Offline tokenizer | `agent/harmony_codec.py` (vendored o200k) | fully-offline claim |
-| Eval harness + benchmark | `tests/eval/`, `demo-project/` | C3 |
+| Eval harness + benchmark | *(to be rebuilt against small real repos)* | C3 |
 
 Include an **architecture figure** (reuse `docs/architecture/architecture*.svg`) and a
 **deployment figure** (edge box, air-gapped, no cloud arrow).
@@ -169,11 +169,12 @@ Include an **architecture figure** (reuse `docs/architecture/architecture*.svg`)
 - **Energy per task** (J) — `nvidia-smi --query-gpu=power.draw` integrated over wall-clock,
   or a wall-plug meter; report J/task and tokens/J.
 
-**Benchmark**
-- `demo-project/` (Nimbus) — multi-language, with locate/explain/cross-lang/run-fix tasks
-  and a seeded bug with a checkable fix; run via `tests/eval/run_eval.py`.
-- Add **2–3 small real OSS repos** (different languages) for external validity; write
-  objective checks (known file/symbol answers, existing test suites).
+**Benchmark** *(to be assembled — the earlier synthetic fixture + harness were removed)*
+- Assemble **2–4 small real OSS repos** (different languages) with objective checks
+  (known file/symbol answers, existing test suites, and one or two seeded-bug fix tasks
+  verified by the repo's own tests).
+- Build a headless eval driver (run the agent per task via `loop.run_turn`, score
+  objectively) that captures tool-call validity, task success, turns, latency, VRAM, energy.
 - Report per-category (locate/explain/edit/run-fix) and aggregate.
 
 **Baselines**
@@ -237,7 +238,7 @@ Include an **architecture figure** (reuse `docs/architecture/architecture*.svg`)
 
 | Days | Focus |
 |------|-------|
-| D1–D2 | Freeze scope; expand `tests/eval` tasks; wire energy logging into the harness |
+| D1–D2 | Freeze scope; assemble the benchmark repos + build the eval driver with energy logging |
 | D3–D5 | Run the config sweep + ablations on the box; collect all metrics/reports |
 | D4–D7 | **You draft** intro/related/system/method in your own words (in parallel) |
 | D6–D8 | Make tables/plots from `reports/*.json`; write results & discussion |
@@ -265,10 +266,10 @@ Post-submission: acceptance Nov 01 → register by Nov 10 → camera-ready → p
 ## 15. Gap list — have vs. build for the paper
 
 **Already have:** offline agent, client-side Harmony + robustness layer (C2), permission
-model, `local_mind.md`, eval harness + Nimbus benchmark, serving-strategy findings.
+model, `local_mind.md`, serving-strategy findings.
 
 **Build/measure for the paper:**
-- [ ] Energy/latency/VRAM logging in `tests/eval` (per-task J, tokens/J, peak VRAM).
+- [ ] Rebuild the eval harness (headless driver + benchmark repos) with energy/latency/VRAM logging (per-task J, tokens/J, peak VRAM).
 - [ ] Robustness-layer **ablation switches** (config flags to disable salvage / leaked-recovery
       / synthesis) so RQ2 is a clean on/off study.
 - [ ] Config-sweep driver (loop over model/quant/KV/temp, relaunch llama-server, tag runs).

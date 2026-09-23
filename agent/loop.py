@@ -61,7 +61,7 @@ def _infer_leaked_call(content, registry):
     """If `content` carries tool-argument JSON, return (tool_name, args) for an
     unambiguously identified tool, else None. Recovers a turn where the model wrote a
     tool call as reasoning text (no recipient) instead of a real tool call. Covers the
-    read/grep/glob funnel plus bash / lsp / edit / write / multi_edit."""
+    read/grep/glob funnel plus bash / edit / write / multi_edit."""
     args = _extract_json_obj(content)
     if args is None:
         return None
@@ -71,8 +71,6 @@ def _infer_leaked_call(content, registry):
         return "read", args
     if "command" in keys and has("bash"):
         return "bash", args
-    if "op" in keys and has("lsp"):
-        return "lsp", args
     if "edits" in keys and "path" in keys and has("multi_edit"):
         return "multi_edit", args
     if "content" in keys and "path" in keys and has("write"):
@@ -143,17 +141,6 @@ DEFAULT_INSTRUCTIONS = (
     "- Answer in PLAIN TEXT for a terminal: short paragraphs and simple `- ` bullets. Avoid "
     "Markdown tables and heavy formatting — they do not render in a terminal.\n"
     "Always finish with a clear final answer in plain text, grounded in the code you read."
-)
-
-# Appended only when the `lsp` tool is available (a language server is installed),
-# so we never point the model at a tool that isn't registered.
-LSP_INSTRUCTIONS = (
-    "\n\nYou also have an `lsp` tool backed by the project's language server — use it to "
-    "resolve a symbol PRECISELY rather than guessing from grep: `defs` (where a symbol is "
-    "defined), `refs` (its callers/references), `info` (its type/signature/doc), `outline` "
-    "(all symbols in a file). Prefer `lsp` over `grep` when you know a symbol NAME and want its "
-    "definition, callers, or type; use `grep` for free-text search or when `lsp` reports no "
-    "server. After `lsp` gives a file:line, `read` those lines to ground your answer."
 )
 
 # Appended to the instructions only when the `bash` tool is available (execution
@@ -308,8 +295,6 @@ def run_turn(
     """
     max_turns = max_turns or config.MAX_TURNS
     instructions = instructions or DEFAULT_INSTRUCTIONS
-    if registry.get("lsp"):  # language server present -> teach the model to use it
-        instructions = instructions + LSP_INSTRUCTIONS
     if registry.get("bash"):  # execution enabled -> teach the model to use it
         instructions = instructions + EXEC_INSTRUCTIONS
     if registry.get("edit"):  # write tier enabled -> teach the model to use it

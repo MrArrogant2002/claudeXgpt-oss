@@ -19,11 +19,11 @@ Pieces involved:
 - **Model + server:** gpt-oss-20b (GGUF, MXFP4) served by `llama-server` (llama.cpp).
 - **Protocol:** OpenAI Harmony chat format, rendered/parsed client-side via `openai-harmony` + the o200k_base tokenizer vocab.
 - **Agent core:** an orchestration loop, an inference client, a Harmony codec, context/compaction, config.
-- **Tools:** `list_dir`, `glob`, `grep`, `read` (read-only funnel); `bash` (opt-in exec); `lsp` (semantic code intelligence); `edit`/`write`/`multi_edit` (permission-gated write tier).
+- **Tools:** `list_dir`, `glob`, `grep`, `read` (read-only funnel); `bash` (opt-in exec); `edit`/`write`/`multi_edit` (permission-gated write tier).
 - **Safety:** a path sandbox + a Claude-style permission engine.
-- **Project memory:** `local init` → `local_mind.md` (offline CLAUDE.md), auto-injected into queries.
-- **Front-ends:** `cli.py` (headless/scriptable, `--json`) and `tui.py` (interactive Claude-Code-style TUI).
-- **Evaluation:** a task-based eval harness (`tests/eval/`) + a synthetic multi-language fixture (`demo-project/`).
+- **Project memory:** `local init` (TUI `/init`) → `local_mind.md` (offline CLAUDE.md), auto-injected into queries.
+- **Front-end:** `tui.py` (interactive Claude-Code-style TUI).
+- **Evaluation:** an eval harness + benchmark to be assembled against small real repos (the earlier synthetic fixture was removed).
 
 ---
 
@@ -43,15 +43,8 @@ Pieces involved:
 | **Python 3.10+** | runs the agent | 3.12 used in dev; `X | None` syntax needs ≥3.10 |
 | **git** | two-machine sync | |
 | **ripgrep (`rg`)** | fast `grep` tool | optional — falls back to a pure-Python walk |
-| **Node.js** | run/test JS/TS in a target repo (e.g. `demo-project`) | optional |
+| **Node.js** | run/test JS/TS in a target repo | optional |
 | **Go toolchain** | run/test Go in a target repo | optional |
-| **A language server** | the `lsp` tool | optional; installed per language (below) |
-
-Language servers the `lsp` tool auto-detects (install only what you need), from
-[`agent/lsp/servers.py`](../agent/lsp/servers.py):
-`pyright-langserver` or `python -m pylsp` (Python), `typescript-language-server` (TS/JS),
-`gopls` (Go), `rust-analyzer` (Rust), `clangd` (C/C++), `jdtls` (Java). If none is
-installed, the `lsp` tool simply isn't offered and the agent behaves as before.
 
 ### 3.2 The model — gpt-oss-20b (GGUF, MXFP4)
 Download one GGUF (~13 GB) from Hugging Face, e.g. `ggml-org/gpt-oss-20b-GGUF` or
@@ -95,10 +88,10 @@ curl -L -o vendor/tiktoken/o200k_base.tiktoken \
 
 ### 3.6 Verify the setup
 ```bash
-llama-server ... --port 8081          # terminal 1
-python tui.py --project ./demo-project   # terminal 2  → banner shows "llama-server connected"
+llama-server ... --port 8081        # terminal 1
+python tui.py --project ./your-repo  # terminal 2  → banner shows "llama-server connected"
 ```
-If the tokenizer vocab is missing or the server is down, both `cli.py`/`tui.py` print the exact fix.
+If the tokenizer vocab is missing or the server is down, `tui.py` prints the exact fix.
 
 ---
 
@@ -117,12 +110,9 @@ llama-server (gpt-oss-20b, MXFP4)  ◀── HTTP /completion (token IDs) ──
   agent/permissions.py — Claude-style permission engine (plan/ask/accept/…)
   agent/edits.py       — read-before-write freshness, atomic writes, diffs
   agent/project_mind.py— local_mind.md build/inject + staleness (local init)
-  agent/tools/         — list_dir, glob, grep, read, bash, lsp, edit/write/multi_edit
-  agent/lsp/           — JSON-RPC stdio client + language/server detection
+  agent/tools/         — list_dir, glob, grep, read, bash, edit/write/multi_edit
   agent/ui/            — app.py (REPL), render.py, theme.py, banner.py, session.py
-  cli.py / tui.py      — headless + interactive front-ends
-  tests/eval/          — eval harness (tasks.jsonl + run_eval.py)
-  demo-project/        — synthetic multi-language fixture (Nimbus)
+  tui.py               — the interactive TUI front-end
 ```
 
 The **funnel** is the core navigation idea: `list_dir` (orient) → `glob` (locate files)
@@ -164,12 +154,14 @@ The code carries milestone markers (M0–M5); later capabilities were layered on
 | **M4 — the loop** | `loop.py`: dispatch tool calls, feed results back, circuit-breaker, error-as-data | mocked `run_turn`; live runs |
 | **M5 — long sessions + UI** | context budgeting, compaction, streaming, the TUI (`agent/ui/`) | mocked streaming; live TUI |
 | **Exec** | `bash` tool (opt-in, deny-list, timeouts) for compile/lint/test | fixture with a failing test |
-| **LSP** | `lsp` tool + `agent/lsp/` (JSON-RPC stdio), gated on an installed server | grep-seeded fallback tests |
 | **Write tier** | `edit`/`write`/`multi_edit` + `permissions.py` + `edits.py` (atomic, backups, freshness) | permission-gate + overwrite-guard tests |
-| **CLI/TUI polish** | permission modes, `/`-commands, streaming, espresso theme, `--json` | offline render tests |
+| **TUI polish** | permission modes, `/`-commands, streaming, espresso theme | offline render tests |
 | **Project memory** | `project_mind.py`: `local init` → `local_mind.md`, auto-inject, staleness | mocked run_turn injection tests |
 | **Robustness fixes** | tokenizer salvage hardening, tool accuracy (glob ignore/recency, grep context, read binary), tool-less synthesis fallback | offline mock suites |
-| **Evaluation** | `tests/eval/` harness + `demo-project/` fixture | `--self-test` + pipeline smoke |
+
+> Scope note: an LSP tool and a headless CLI + synthetic benchmark were built and later
+> removed to focus the system; the paper's evaluation harness is being rebuilt against
+> small real repositories.
 
 ### Offline verification methodology (the two-machine discipline)
 On the build machine we can't run the model, so every change is checked with:
@@ -177,8 +169,7 @@ On the build machine we can't run the model, so every change is checked with:
 2. **Mocked `run_turn`** — patch `harmony_codec.render/parse` + `inference.complete` to
    drive the loop deterministically (no server). This is how recovery paths, the mind
    injection, and the synthesis fallback were verified.
-3. Real fixture I/O for the tools (sandbox, glob/grep/read) against `demo-project/`.
-4. `tests/eval/run_eval.py --self-test` for the harness logic.
+3. Real filesystem I/O for the tools (sandbox, glob/grep/read) against a scratch repo.
 Live model runs happen only on the GPU box after `git pull`.
 
 ---
@@ -187,10 +178,8 @@ Live model runs happen only on the GPU box after `git pull`.
 
 ```bash
 # on the box, model up (see 3.3)
-python cli.py  --project ./repo "where is X defined?"        # one-shot, answer to stdout
-python cli.py  --project ./repo init                         # build local_mind.md
-python tui.py  --project ./repo --allow-exec --allow-edit    # interactive
-python tests/eval/run_eval.py --label mycfg                  # evaluate a config
+python tui.py --project ./repo                              # interactive; type questions
+python tui.py --project ./repo --allow-exec --allow-edit   # + run/edit code; /init builds local_mind.md
 ```
 Key env knobs (`agent/config.py`): `AGENT_BASE_URL`, `AGENT_TEMPERATURE`/`AGENT_TOP_P`,
 `AGENT_MAX_TOKENS`(+`_CAP`), `AGENT_REASONING`, `AGENT_CONTEXT_TOKENS`, `AGENT_LOCAL_MIND`.
@@ -248,4 +237,4 @@ Grouped by relevance to this system. *arXiv ids given where confident — confir
 - **TrustLLM: Trustworthiness in Large Language Models** — Sun et al., 2024 (arXiv:2401.05561).
 
 See also `docs/research/` in this repo (gpt-oss/Harmony, quantization, evaluation) for
-the applied notes, and the [Language Server Protocol spec](https://microsoft.github.io/language-server-protocol/) for the `lsp` tool.
+the applied notes.

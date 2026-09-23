@@ -13,7 +13,7 @@ Accuracy upgrades (match Claude Code's Glob behaviour):
 from .base import Tool
 
 # Directories whose contents are almost never what a code question is about.
-# Kept in sync with grep/list_dir/lsp so the funnel behaves consistently.
+# Kept in sync with grep/list_dir so the funnel behaves consistently.
 _IGNORE_DIRS = {
     ".git", ".svn", ".hg", ".bzr", ".jj", ".sl",
     "node_modules", ".venv", "venv", "env", "__pycache__",

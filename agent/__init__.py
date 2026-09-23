@@ -23,12 +23,11 @@ Safety
 config.py            settings + environment overrides
 
 Subpackages
-  tools/             the tool tiers: list_dir/glob/grep/read (navigate), lsp (semantic),
+  tools/             the tool tiers: list_dir/glob/grep/read (navigate),
                      bash (execute), edit/write/multi_edit (write) + Registry
-  lsp/               local Language Server Protocol client (stdio) + server detection
   ui/                the TUI: app (REPL), render, theme, session, banner
 
-Entry points (repo root): cli.py (one-shot/pipe) · tui.py (interactive TUI)
+Entry point (repo root): tui.py (interactive TUI)
 """
 
 __version__ = "0.1.0"
