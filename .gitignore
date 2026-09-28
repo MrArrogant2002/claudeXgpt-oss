@@ -58,7 +58,3 @@ vendor/tiktoken/*
 # Reversible backups written by the edit/write tools (per-project).
 .agent-backups/
 research-paper
-
-# Eval harness outputs (per-run reports + throwaway repo copies).
-eval/reports/
-eval/.work/

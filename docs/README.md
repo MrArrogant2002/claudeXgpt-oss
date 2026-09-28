@@ -31,8 +31,7 @@ and `-permission-model.svg`.
 | Doc | What it covers |
 |-----|----------------|
 | [evaluation-and-trustworthiness.md](research/evaluation-and-trustworthiness.md) | **Primary paper focus** — trustworthiness/reliability evaluation of the agent |
-
-The harness that implements it lives in [`../eval/`](../eval/) (`harness.py` + `tasks.example.jsonl`; run `python eval/harness.py --self-test`).
+| [evaluation-plan.md](research/evaluation-plan.md) | The evaluation plan: metric catalog, what to compare against, context-size testing, agentic-benchmark landscape |
 | [gpt-oss-doc.md](research/gpt-oss-doc.md) | Running gpt-oss fully local + the Harmony response format |
 | [claude-internal-structure.md](research/claude-internal-structure.md) | Claude Code internals (memory, context, hooks, permissions) |
 | [literature-survey.xlsx](research/literature-survey.xlsx) | Reference survey (spreadsheet) |

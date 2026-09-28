@@ -116,7 +116,7 @@ Map each component to a figure/paragraph. All of this already exists:
 | Tool funnel (navigate-don't-index) | `agent/tools/` (list_dir/glob/grep/read) | retrieval-free context (C1) |
 | Permission engine + sandbox | `agent/permissions.py`, `agent/sandbox.py` | security model (secondary) |
 | Offline tokenizer | `agent/harmony_codec.py` (vendored o200k) | fully-offline claim |
-| Eval harness (in-process, trustworthiness metrics + ablation) | `eval/harness.py` | C3 |
+| Evaluation methodology + metric catalog | `docs/research/evaluation-plan.md` | C3 |
 
 Include an **architecture figure** (reuse `docs/architecture/architecture*.svg`) and a
 **deployment figure** (edge box, air-gapped, no cloud arrow).
@@ -168,14 +168,13 @@ Include an **architecture figure** (reuse `docs/architecture/architecture*.svg`)
 - Safety: unauthorized-write / path-escape attempts blocked (should be 100%).
 - Latency (tokens/s, time-to-first-token) as a secondary efficiency note.
 
-**Benchmark**
-- The in-process harness (`eval/harness.py`, run via `loop.run_turn`) scores tool-call
-  validity, faithfulness (cited-path grounding / hallucination), task success, safety
-  (sandbox/permission denials), turns/recoveries, and self-consistency; it sweeps the
-  reliability-layer ablation ladder (off → salvage → leaked → full).
-- Assemble **2–4 small real OSS repos** (different languages); `eval/tasks.example.jsonl`
-  is the starter set (locate/explain/cross-file/run-fix/safety) to adapt per repo.
-- Report per-category and per-ablation-rung aggregates.
+**Benchmark** — full methodology in `docs/research/evaluation-plan.md`.
+- Metrics: tool-call validity, faithfulness (cited-path grounding / hallucination), task
+  success (test-verified), safety (sandbox/permission + prompt-injection), reliability@k,
+  turns/recoveries; measured across the reliability-layer ablation (off → salvage → leaked
+  → full) and a context-size sweep.
+- Assemble **2–4 small real OSS repos** (different languages) with objective checks.
+- Report per-category and per-ablation-rung aggregates. (Harness to be built.)
 
 **Baselines**
 - Reliability-layer-**OFF** — the key contrast for RQ2.
@@ -272,8 +271,8 @@ Post-submission: acceptance Nov 01 → register by Nov 10 → camera-ready → p
 model, serving-strategy findings.
 
 **Build/measure for the paper:**
-- [x] Eval harness built (`eval/harness.py`: trustworthiness metrics + ablation ladder, in-process).
-- [ ] Assemble 2–4 benchmark repos + adapt `tasks.jsonl`; (optional) add energy/latency/VRAM logging.
+- [ ] Build the eval harness per `docs/research/evaluation-plan.md` (metrics + ablation, in-process).
+- [ ] Assemble 2–4 benchmark repos + task set; (optional) add energy/latency/VRAM logging.
 - [ ] Robustness-layer **ablation switches** (config flags to disable salvage / leaked-recovery
       / synthesis) so RQ2 is a clean on/off study.
 - [ ] Config-sweep driver (loop over model/quant/KV/temp, relaunch llama-server, tag runs).
