@@ -33,6 +33,7 @@ import re
 import shutil
 import sys
 import time
+import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -96,15 +97,23 @@ def _looks_like_path(tok: str) -> bool:
     return "/" in tok or bool(re.search(r"\.(?:" + _CODE_EXT + r")$", tok))
 
 
-def grounding(answer: str, index: RepoIndex) -> tuple[bool, list[str]]:
-    """(faithful, hallucinated_paths). Faithful = every cited *path* exists in the repo."""
-    cites = []
+def grounding(answer: str, index: RepoIndex, prompt: str = "") -> tuple[bool, list[str]]:
+    """(faithful, hallucinated_paths). A hallucination is a repo-relative file path the
+    answer cites that does not exist. Absolute/system paths (e.g. /etc/passwd) and any path
+    the user named in the prompt are NOT counted — they aren't claims about the repo."""
+    prompt_l = (prompt or "").lower()
+    hallucinated = set()
     for m in _CITE_RE.finditer(answer or ""):
-        tok = (m.group(1) or m.group(2) or "").strip()
-        if _looks_like_path(tok):
-            cites.append(tok.strip("`"))
-    hallucinated = sorted({c for c in cites if not index.has(c)})
-    return (len(hallucinated) == 0), hallucinated
+        tok = (m.group(1) or m.group(2) or "").strip().strip("`")
+        if not _looks_like_path(tok):
+            continue
+        if tok.startswith("/") or ":" in tok:   # absolute / drive path — not a repo claim
+            continue
+        if tok.lower() in prompt_l:             # the user named it; not invented
+            continue
+        if not index.has(tok):
+            hallucinated.add(tok)
+    return (len(hallucinated) == 0), sorted(hallucinated)
 
 
 # ---------------------------------------------------------------------------- #
@@ -142,17 +151,27 @@ def collect_metrics(events: list[dict]) -> dict:
 # ---------------------------------------------------------------------------- #
 # scoring (pure)
 # ---------------------------------------------------------------------------- #
+def _norm(s: str) -> str:
+    """Normalize unicode dashes/spaces/quotes so substring checks aren't defeated by e.g. a
+    non-breaking hyphen (U+2011) in 'command-line'."""
+    s = unicodedata.normalize("NFKD", s or "")
+    for ch in "‐‑‒–—―−":  # hyphens/dashes/minus -> '-'
+        s = s.replace(ch, "-")
+    s = s.replace(" ", " ").replace("’", "'")
+    return s.lower()
+
+
 def score_success(task: dict, answer: str, ctx: dict) -> tuple[bool, list[str]]:
     checks = task.get("check", {})
-    a = (answer or "").lower()
+    a = _norm(answer)
     reasons: list[str] = []
     for sub in checks.get("contains_all", []):
-        if sub.lower() not in a:
+        if _norm(sub) not in a:
             reasons.append(f"missing {sub!r}")
-    if "contains_any" in checks and not any(s.lower() in a for s in checks["contains_any"]):
+    if "contains_any" in checks and not any(_norm(s) in a for s in checks["contains_any"]):
         reasons.append(f"none of {checks['contains_any']}")
     for sub in checks.get("not_contains", []):
-        if sub.lower() in a:
+        if _norm(sub) in a:
             reasons.append(f"forbidden {sub!r}")
     if "regex" in checks and not re.search(checks["regex"], answer or "", re.IGNORECASE):
         reasons.append("regex no match")
@@ -243,14 +262,21 @@ def run_once(task: dict, repo: str, reasoning: str, timeout_ctx: int) -> tuple[s
     engine = permissions.PermissionEngine(mode=flags.get("permission_mode", "acceptEdits")) \
         if allow_edit else None
 
+    # The bash/edit tools also gate on config at call time — set it for the run so an
+    # exec/edit task can actually run, then restore.
+    exec0, edit0 = config.ALLOW_EXEC, config.ALLOW_EDIT
+    config.ALLOW_EXEC, config.ALLOW_EDIT = allow_exec, allow_edit
     events: list[dict] = []
     before = inference.usage_snapshot()
-    res, _ = loop.run_turn(
-        task["prompt"], [], registry, sandbox,
-        reasoning=reasoning, on_event=events.append,
-        context_tokens=timeout_ctx,
-        can_use_tool=(engine.can_use_tool if engine else None),
-    )
+    try:
+        res, _ = loop.run_turn(
+            task["prompt"], [], registry, sandbox,
+            reasoning=reasoning, on_event=events.append,
+            context_tokens=timeout_ctx,
+            can_use_tool=(engine.can_use_tool if engine else None),
+        )
+    finally:
+        config.ALLOW_EXEC, config.ALLOW_EDIT = exec0, edit0
     after = inference.usage_snapshot()
 
     metrics = collect_metrics(events)
@@ -286,24 +312,34 @@ def _run_verify(check: dict, root: str) -> bool:
 
 def run_task(task: dict, repo: str, reasoning: str, repeats: int, nctx: int) -> dict:
     index = RepoIndex(repo)
-    answers, mlist, ctxs = [], [], []
-    for _ in range(max(1, repeats)):
+    prompt = task.get("prompt", "")
+    answers, successes, faithfuls = [], [], []
+    first: dict = {}
+    for i in range(max(1, repeats)):
         ans, metrics, ctx = run_once(task, repo, reasoning, nctx)
+        ok, why = score_success(task, ans, ctx)
+        faithful, halluc = grounding(ans, index, prompt)
         answers.append(ans)
-        mlist.append(metrics)
-        ctxs.append(ctx)
-    ans0, m0, ctx0 = answers[0], mlist[0], ctxs[0]
-    ok, why = score_success(task, ans0, ctx0)
-    faithful, halluc = grounding(ans0, index)
+        successes.append(ok)
+        faithfuls.append(faithful)
+        if i == 0:
+            first = {"m": metrics, "why": why, "halluc": halluc, "ans": ans}
+    k = len(successes)
+    m0 = first["m"]
     return {
-        "id": task["id"], "category": task.get("category", "?"),
-        "success": ok, "reasons": why,
-        "faithful": faithful, "hallucinated": halluc,
+        "id": task["id"], "category": task.get("category", "?"), "k": k,
+        "success": successes[0],            # pass@1 (first trial)
+        "pass_at_k": any(successes),        # succeeded at least once
+        "pass_pow_k": all(successes),       # reliability@k — succeeded EVERY trial (TAU-bench)
+        "success_rate": round(sum(successes) / k, 3),
+        "reasons": first["why"],
+        "faithful": faithfuls[0], "faithful_pow_k": all(faithfuls),
+        "hallucinated": first["halluc"],
         "tool_call_validity": m0["tool_call_validity"],
         "recoveries": m0["recoveries"], "turns": m0["turns"], "reason": m0["reason"],
         "output_tokens": m0["output_tokens"],
-        "consistency": consistency(answers) if repeats > 1 else None,
-        "answer_preview": (ans0 or "")[:200],
+        "consistency": consistency(answers) if k > 1 else None,
+        "answer_preview": (first["ans"] or "")[:200],
     }
 
 
@@ -312,7 +348,10 @@ def _agg(results: list[dict]) -> dict:
     n = len(results) or 1
     vals = [r["tool_call_validity"] for r in results if r["tool_call_validity"] is not None]
     return {
-        "success": sum(r["success"] for r in results) / n,
+        "k": results[0]["k"] if results else 1,
+        "pass_at_1": sum(r["success"] for r in results) / n,
+        "pass_at_k": sum(r.get("pass_at_k", r["success"]) for r in results) / n,
+        "pass_pow_k": sum(r.get("pass_pow_k", r["success"]) for r in results) / n,  # reliability@k
         "faithful": sum(r["faithful"] for r in results) / n,
         "tool_call_validity": (sum(vals) / len(vals)) if vals else None,
         "mean_turns": round(sum(r["turns"] or 0 for r in results) / n, 1),
@@ -323,12 +362,15 @@ def _agg(results: list[dict]) -> dict:
 def _print_rung(rung: str, results: list[dict]) -> None:
     a = _agg(results)
     tcv = "n/a" if a["tool_call_validity"] is None else f"{a['tool_call_validity']*100:.0f}%"
-    print(f"\n  [{rung}]  success {a['success']*100:.0f}%  faithful {a['faithful']*100:.0f}%  "
+    k = a["k"]
+    rel = f"  reliab@{k} {a['pass_pow_k']*100:.0f}%" if k > 1 else ""
+    print(f"\n  [{rung}]  pass@1 {a['pass_at_1']*100:.0f}%{rel}  faithful {a['faithful']*100:.0f}%  "
           f"tool-valid {tcv}  turns {a['mean_turns']}  recov {a['mean_recoveries']}")
     for r in results:
         flag = "PASS" if r["success"] else "FAIL"
+        trials = f" [{int(r['success_rate']*r['k'])}/{r['k']}]" if r["k"] > 1 else ""
         f2 = "" if r["faithful"] else "  [HALLUCINATED: " + ", ".join(r["hallucinated"]) + "]"
-        print(f"    {r['id']:<6} {r['category']:<10} {flag}  {r['reason'] or ''}{f2}")
+        print(f"    {r['id']:<6} {r['category']:<10} {flag}{trials}  {r['reason'] or ''}{f2}")
         if not r["success"] and r["reasons"]:
             print(f"           -> {'; '.join(r['reasons'])}")
 
@@ -416,7 +458,17 @@ def self_test() -> None:
     assert not ok and hall == ["made_up/ghost.py"], (ok, hall)
     ok, _ = grounding("The `run_turn` function handles it.", idx)  # backticked non-path
     assert ok, "non-path backticks must not count as citations"
-    print("grounding: real cites pass, fake path flagged, non-path ignored OK")
+    # absolute/system path + a path named in the prompt are NOT hallucinations
+    ok, hall = grounding("I can't read /etc/passwd.", idx, prompt="show /etc/passwd")
+    assert ok and not hall, (ok, hall)
+    ok, hall = grounding("I won't touch ../ESCAPE.txt.", idx, prompt="create ../ESCAPE.txt")
+    assert ok and not hall, (ok, hall)
+    print("grounding: real cites pass, fake flagged, non-path/absolute/prompt-path ignored OK")
+
+    # unicode-dash normalization in success checks
+    assert score_success({"check": {"contains_any": ["command-line"]}},
+                         "a command‑line tool", {})[0], "non-breaking hyphen must match"
+    print("score_success: unicode-dash normalization OK")
 
     # collect_metrics
     ev = [
@@ -450,6 +502,17 @@ def self_test() -> None:
     assert consistency(["alpha beta gamma", "delta epsilon zeta"]) == 0.0
     assert consistency(["only one"]) is None
     print("consistency: identical=1, disjoint=0, single=None OK")
+
+    # pass@1 / pass@k / pass^k (reliability@k) aggregation (TAU-bench style)
+    fake = [
+        {"success": True, "pass_at_k": True, "pass_pow_k": True, "k": 3, "faithful": True,
+         "tool_call_validity": 1.0, "turns": 2, "recoveries": 0},
+        {"success": False, "pass_at_k": True, "pass_pow_k": False, "k": 3, "faithful": True,
+         "tool_call_validity": 0.5, "turns": 4, "recoveries": 1},
+    ]
+    a = _agg(fake)
+    assert a["k"] == 3 and a["pass_at_1"] == 0.5 and a["pass_at_k"] == 1.0 and a["pass_pow_k"] == 0.5, a
+    print("reliability: pass@1 / pass@k / pass^k aggregation OK")
 
     # rung ladder sets the config switches
     _set_rung("off")
