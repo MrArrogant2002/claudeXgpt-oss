@@ -124,9 +124,11 @@ DEFAULT_INSTRUCTIONS = (
 # model doesn't have. Kept terse.
 EXEC_INSTRUCTIONS = (
     " You can run shell commands with `bash` in a persistent shell with the project venv "
-    "active (build/lint/test, then read the errors). If a run fails for a missing package, "
-    "install it into the venv and retry, and tell the user what you installed. For a Python "
-    "package repo whose own tests import it, `pip install -e .` first."
+    "active (build/lint/test, then read the errors). Run tools via `python -m` (e.g. "
+    "`python -m pytest`) so they use the venv, not a global copy. If a run fails for a "
+    "missing package, install it into the venv and retry, and tell the user what you "
+    "installed; for a Python package repo whose own tests import it, `pip install -e .` "
+    "first. Only report a check as passing if you actually saw it pass."
 )
 
 EDIT_INSTRUCTIONS = (
@@ -155,9 +157,11 @@ def _synthesize_final(history, reasoning, instructions, on_event, cancel):
     hist = list(history)
     hist.append(
         hc.user_message(
-            "Stop exploring — no tools are available now. Using ONLY the information "
-            "already gathered above, write the COMPLETE final answer immediately. If the "
-            "task was to produce a document, output the entire document and nothing else."
+            "Stop exploring — no tools are available now. Using ONLY what the tools actually "
+            "showed above, write the final answer now. Report only what you observed: if you "
+            "never saw a check succeed (e.g. tests passing), say it is unresolved and what "
+            "still fails — do NOT claim it works. If the task was to produce a document, "
+            "output the entire document and nothing else."
         )
     )
     prefill_ids, stop_ids = hc.render(
