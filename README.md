@@ -188,9 +188,10 @@ agent, serial in-process tools (no MCP), fully local. The navigation tools are
 By default the agent can only *read* code. `--allow-exec` (or `/exec on` in the TUI)
 adds a **`bash`** tool so it can **compile / lint / type-check / test** the project,
 **install missing dependencies**, and find real errors. Commands run in **one persistent
-shell** with the project's **venv auto-activated**, so `cd`, `export`, and installs
-persist across calls exactly like your terminal (the model runs a command, reads the
-stderr, installs what's missing into the venv, and retries).
+shell** with the project's **venv auto-activated**, so the venv, `export`s, and installs
+persist across calls; **each command starts at the project root** (a `cd` lasts only within
+that command, matching the file tools) so the shell can't drift out of the project. The
+model runs a command, reads the stderr, installs what's missing into the venv, and retries.
 
 ⚠ **This runs arbitrary shell commands with your user's privileges, with no container.**
 For fully-local / air-gapped use the shell is **unrestricted by design** (installs,

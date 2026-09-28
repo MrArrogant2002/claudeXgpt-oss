@@ -113,9 +113,11 @@ def _run_tool_call(registry, name, args, sandbox, can_use_tool, on_event):
 # on a small window. Note it does NOT force tool use — the model decides when to search.
 DEFAULT_INSTRUCTIONS = (
     "You are a code agent working inside a repository. Check the code with the tools "
-    "(list_dir, glob, grep, read) before stating facts about it, and cite paths. "
-    "When a question is about you, or cannot be answered from the repo, answer directly "
-    "without searching. Reply in short plain text; do not modify files unless asked."
+    "(list_dir, glob, grep, read) before stating facts about it, and cite paths. All paths "
+    "are relative to the project root: each `bash` command starts there and a `cd` lasts "
+    "only within that one command. When a question is about you, or cannot be answered from "
+    "the repo, answer directly without searching. Reply in short plain text; do not modify "
+    "files unless asked."
 )
 
 # Appended only when the matching tools are registered, so we never name a tool the
@@ -123,7 +125,8 @@ DEFAULT_INSTRUCTIONS = (
 EXEC_INSTRUCTIONS = (
     " You can run shell commands with `bash` in a persistent shell with the project venv "
     "active (build/lint/test, then read the errors). If a run fails for a missing package, "
-    "install it into the venv and retry, and tell the user what you installed."
+    "install it into the venv and retry, and tell the user what you installed. For a Python "
+    "package repo whose own tests import it, `pip install -e .` first."
 )
 
 EDIT_INSTRUCTIONS = (
@@ -135,10 +138,8 @@ EDIT_INSTRUCTIONS = (
 # counter resets whenever the model makes a tool call (real progress), so a long
 # multi-file exploration with the occasional narration turn won't trip it.
 MAX_EMPTY_RECOVERY = 3
-# Once the model has taken this many tool steps in a turn, an empty final means it is
-# thrashing (gathered enough but won't commit), so we force synthesis instead of
-# nudging for yet more tool calls — the fix for the observed 18-call spirals.
-SYNTH_AFTER_STEPS = 4
+# Tool steps in a turn after which an empty final forces synthesis — see
+# config.SYNTH_AFTER_STEPS (raised so genuine multi-step tasks aren't cut off).
 
 
 def _synthesize_final(history, reasoning, instructions, on_event, cancel):
@@ -491,7 +492,7 @@ def run_turn(
         # If it has already gathered enough (several tool steps) or repeatedly stalled,
         # force a single TOOLLESS synthesis instead of nudging it into more tool calls —
         # nudging-for-more-tools is what produced the observed 18-call spirals.
-        if empty_recovery >= MAX_EMPTY_RECOVERY or tool_steps >= SYNTH_AFTER_STEPS:
+        if empty_recovery >= MAX_EMPTY_RECOVERY or tool_steps >= config.SYNTH_AFTER_STEPS:
             answer = _synthesize_final(history, reasoning, instructions, on_event, cancel)
             if answer:
                 if on_event:

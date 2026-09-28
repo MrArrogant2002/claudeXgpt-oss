@@ -1,5 +1,8 @@
-"""A persistent `bash` session so the agent's shell behaves like the user's terminal:
-environment, working directory, and an activated virtualenv persist across commands.
+"""A persistent `bash` session: environment variables and an activated virtualenv persist
+across commands, but every command starts at the project root — a `cd` lasts only within
+the command that issued it. This keeps the shell's cwd consistent with the file tools
+(list_dir/glob/grep/read are always project-root-relative) and stops the shell from
+silently drifting outside the project.
 
 One session lives per project root for the life of the agent process. Commands are run
 by writing them to the shell's stdin followed by a unique end-of-command marker that
@@ -84,7 +87,10 @@ class ShellSession:
         threading.Thread(
             target=self._pump, args=(self._proc.stdout, q), daemon=True
         ).start()
-        # Non-interactive bash reads stdin without a prompt/echo. Activate the venv once.
+        # Non-interactive bash reads stdin without a prompt/echo. Remember the project
+        # root as bash sees it (correct on every platform), so we can return to it before
+        # each command; then activate the venv once (its env persists across commands).
+        self._write('NIMBUS_ROOT="$(pwd)"\n')
         if self._venv:
             self._write(f". '{self._venv}' 2>/dev/null || true\n")
 
@@ -137,8 +143,13 @@ class ShellSession:
             nonce = uuid.uuid4().hex
             marker = f"__NIMBUS_DONE_{nonce}__"
             try:
-                # Emit the marker + exit code on its own line AFTER the command runs.
-                self._write(f"{command}\nprintf '\\n{marker}%s__\\n' \"$?\"\n")
+                # Re-anchor to the project root, run the command, then emit the marker +
+                # its exit code. cd resets each call; env/venv persist.
+                self._write(
+                    'cd "$NIMBUS_ROOT" 2>/dev/null\n'
+                    f"{command}\n"
+                    f"printf '\\n{marker}%s__\\n' \"$?\"\n"
+                )
             except (BrokenPipeError, OSError):
                 self.close()
                 return -1, "[shell session died; retry the command]"

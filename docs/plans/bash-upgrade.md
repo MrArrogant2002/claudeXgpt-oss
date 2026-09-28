@@ -7,9 +7,10 @@ yet; this is the "how", to review before we touch code.
 > live per query with the funnel tools (list_dir → glob → grep → read). Nothing is persisted.
 
 ## Goals
-1. **Same-shell `bash`** — the tool runs in **one persistent bash session** that behaves
-   like the user's terminal (env, `cd`, and an activated **venv** persist across calls),
-   auto-activating the project venv on start.
+1. **Same-shell `bash`** — the tool runs in **one persistent bash session** where env and
+   an activated **venv** persist across calls, auto-activating the project venv on start.
+   Each command re-anchors to the project root (a `cd` lasts only within that command) so
+   the shell stays consistent with the file tools and can't drift outside the project.
 2. **Environment awareness** — when a run fails for a missing dependency, the agent
    detects it, installs it into the venv, and retries; it tells the user what it installed.
 3. **Unrestricted local `bash`** — drop the deny-list for fully-local use, but **keep the
