@@ -47,6 +47,10 @@ REPEAT_PENALTY = float(os.environ.get("AGENT_REPEAT_PENALTY", "1.0"))  # 1.0 = n
 
 REQUEST_TIMEOUT = float(os.environ.get("AGENT_TIMEOUT", "600"))
 MAX_TURNS = int(os.environ.get("AGENT_MAX_TURNS", "25"))
+# After this many tool calls in one turn, an empty-final forces a tool-less synthesis
+# (a spiral guard). Kept well above a normal run→inspect→act→re-run task so it doesn't
+# cut off productive multi-step work; consecutive empty-finals (3) are the primary guard.
+SYNTH_AFTER_STEPS = int(os.environ.get("AGENT_SYNTH_AFTER_STEPS", "10"))
 
 # --- tools / sandbox --------------------------------------------------------
 # The project root the tools are allowed to touch. Default = current dir.
