@@ -241,10 +241,11 @@ def parse(output_token_ids):
             output_token_ids, Role.ASSISTANT
         )
     except Exception as e:  # HarmonyError, or any binding-level error -> try salvage
-        salvaged = _lenient_parse(output_token_ids)
-        if salvaged:
-            SALVAGE_COUNT += 1
-            return salvaged
+        if config.RELIABILITY_SALVAGE:  # ablation: off = strict parsing only
+            salvaged = _lenient_parse(output_token_ids)
+            if salvaged:
+                SALVAGE_COUNT += 1
+                return salvaged
         raise ParseError(str(e)) from e
 
 

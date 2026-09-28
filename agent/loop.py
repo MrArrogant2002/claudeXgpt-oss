@@ -458,11 +458,12 @@ def run_turn(
         # commentary channel (no recipient) instead of emitting a real call, which
         # would otherwise waste this turn. If the tool is unambiguous, run it.
         leaked = None
-        for f in fields:
-            if f["channel"] in ("analysis", "commentary") and not f["recipient"]:
-                leaked = _infer_leaked_call(f["content"], registry)
-                if leaked:
-                    break
+        if config.RELIABILITY_LEAKED:  # ablation: off = don't rescue leaked tool calls
+            for f in fields:
+                if f["channel"] in ("analysis", "commentary") and not f["recipient"]:
+                    leaked = _infer_leaked_call(f["content"], registry)
+                    if leaked:
+                        break
         if leaked:
             name, args = leaked
             recipient = f"functions.{name}"
@@ -497,14 +498,15 @@ def run_turn(
         # force a single TOOLLESS synthesis instead of nudging it into more tool calls —
         # nudging-for-more-tools is what produced the observed 18-call spirals.
         if empty_recovery >= MAX_EMPTY_RECOVERY or tool_steps >= config.SYNTH_AFTER_STEPS:
-            answer = _synthesize_final(history, reasoning, instructions, on_event, cancel)
-            if answer:
-                if on_event:
-                    on_event({
-                        "role": "system", "channel": None, "recipient": None,
-                        "content": "[recover] tool-less synthesis -> final answer",
-                    })
-                return Result("completed", answer, turn), history
+            if config.RELIABILITY_SYNTHESIS:  # ablation: off = give up instead of forcing an answer
+                answer = _synthesize_final(history, reasoning, instructions, on_event, cancel)
+                if answer:
+                    if on_event:
+                        on_event({
+                            "role": "system", "channel": None, "recipient": None,
+                            "content": "[recover] tool-less synthesis -> final answer",
+                        })
+                    return Result("completed", answer, turn), history
             return Result("no_answer", "", turn), history
         empty_recovery += 1
 
@@ -537,12 +539,13 @@ def run_turn(
 
     # Ran out of tool-loop steps without a final answer — try one tool-less synthesis
     # from everything gathered before reporting failure.
-    answer = _synthesize_final(history, reasoning, instructions, on_event, cancel)
-    if answer:
-        if on_event:
-            on_event({
-                "role": "system", "channel": None, "recipient": None,
-                "content": "[recover] hit max turns -> tool-less synthesis produced an answer",
-            })
-        return Result("completed", answer, max_turns), history
+    if config.RELIABILITY_SYNTHESIS:
+        answer = _synthesize_final(history, reasoning, instructions, on_event, cancel)
+        if answer:
+            if on_event:
+                on_event({
+                    "role": "system", "channel": None, "recipient": None,
+                    "content": "[recover] hit max turns -> tool-less synthesis produced an answer",
+                })
+            return Result("completed", answer, max_turns), history
     return Result("max_turns", "", max_turns), history

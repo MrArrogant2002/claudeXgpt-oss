@@ -51,6 +51,14 @@ MAX_TURNS = int(os.environ.get("AGENT_MAX_TURNS", "25"))
 # (a spiral guard). Kept well above a normal run→inspect→act→re-run task so it doesn't
 # cut off productive multi-step work; consecutive empty-finals (3) are the primary guard.
 SYNTH_AFTER_STEPS = int(os.environ.get("AGENT_SYNTH_AFTER_STEPS", "10"))
+# Reliability-layer ablation switches — ALL ON in normal use. The eval harness toggles
+# these to measure each mechanism's contribution to trustworthiness (paper RQ2):
+#   salvage    = tolerant Harmony parsing (malformed-header/markerless recovery)
+#   leaked     = dispatch a tool call the model emitted as prose/JSON in reasoning
+#   synthesis  = tool-less forced-answer fallback when the model won't commit
+RELIABILITY_SALVAGE = os.environ.get("AGENT_RELIABILITY_SALVAGE", "1") not in ("0", "false", "False")
+RELIABILITY_LEAKED = os.environ.get("AGENT_RELIABILITY_LEAKED", "1") not in ("0", "false", "False")
+RELIABILITY_SYNTHESIS = os.environ.get("AGENT_RELIABILITY_SYNTHESIS", "1") not in ("0", "false", "False")
 
 # --- tools / sandbox --------------------------------------------------------
 # The project root the tools are allowed to touch. Default = current dir.
