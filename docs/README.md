@@ -30,16 +30,16 @@ and `-permission-model.svg`.
 
 | Doc | What it covers |
 |-----|----------------|
+| [evaluation-and-trustworthiness.md](research/evaluation-and-trustworthiness.md) | **Primary paper focus** — trustworthiness/reliability evaluation of the agent |
 | [gpt-oss-doc.md](research/gpt-oss-doc.md) | Running gpt-oss fully local + the Harmony response format |
 | [claude-internal-structure.md](research/claude-internal-structure.md) | Claude Code internals (memory, context, hooks, permissions) |
-| [quantization-research.md](research/quantization-research.md) | GGUF quantization choices for gpt-oss |
-| [evaluation-and-trustworthiness.md](research/evaluation-and-trustworthiness.md) | How to evaluate the agent on unknown codebases |
 | [literature-survey.xlsx](research/literature-survey.xlsx) | Reference survey (spreadsheet) |
 
 ## Build plans — [`plans/`](plans/)
 
 | Doc | What it covers |
 |-----|----------------|
+| [bash-upgrade.md](plans/bash-upgrade.md) | Persistent same-shell bash, env-aware execution, unrestricted local mode |
 | [write-tools-build-plan.md](plans/write-tools-build-plan.md) | The permission-gated write tier (edit / write / multi_edit) |
 
 ## Paper — [`../research-paper/`](../research-paper/)

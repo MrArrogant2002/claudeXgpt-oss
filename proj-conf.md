@@ -29,13 +29,14 @@ i.e. an in-house special session.
 ## 2. Thesis (one sentence)
 
 > A **fully offline, single-GPU LLM code-understanding-and-editing agent** for air-gapped
-> edge and cyber-physical environments, made reliable on aggressively **quantized** models
-> by a **quantization-robustness layer**, and characterized for **accuracy, energy, and
-> reliability** on commodity edge hardware.
+> edge and cyber-physical environments, made **trustworthy and reliable** by a
+> **reliability layer** (tolerant tool-call recovery) and a **fail-closed permission
+> model**, and characterized with a **trustworthiness evaluation** of its agentic behaviour.
 
-Why it fits SS1: the system is on-device/edge AI (no cloud, ≤16 GB GPU, MXFP4 + 8-bit KV),
-it targets secure/air-gapped CPS deployments, and we measure the low-power/energy trade-offs
-the session cares about.
+Why it fits SS1: the system is on-device/edge AI (no cloud, single GPU, fully local),
+it targets secure/air-gapped CPS deployments, and the contribution is measured
+**trustworthiness** (tool-call validity, faithfulness/grounding, task success, safety of
+the tool/permission boundary) rather than raw model accuracy.
 
 ---
 
@@ -44,12 +45,12 @@ the session cares about.
 - Cloud coding assistants (Copilot, Claude Code, Cursor) are powerful but **send source code
   off-device** — a non-starter for air-gapped CPS, defense, industrial OT, healthcare, and
   IP-sensitive edge deployments.
-- Running a capable agent **locally on a constrained edge GPU** forces aggressive
-  quantization, which **degrades structured tool-calling** (malformed function-call syntax,
-  reasoning that never commits to an action) — the exact behaviors an agent depends on.
-- Prior work measures quantization mostly by **perplexity / accuracy on QA**, not by
-  **agentic reliability** (tool-call validity, multi-step task success). That gap is the
-  paper's opening.
+- A small **local** open model (gpt-oss-20b) is far less polished than a frontier cloud
+  model at **structured tool-calling** — it emits malformed function-call syntax and
+  reasons without committing to an action — the exact behaviours an agent depends on.
+- Prior work measures such models mostly by **perplexity / accuracy on QA**, not by
+  **agentic trustworthiness** (tool-call validity, faithfulness/grounding, multi-step task
+  success, and safety of the tool boundary). That gap is the paper's opening.
 
 ---
 
@@ -59,32 +60,30 @@ the session cares about.
   model (gpt-oss-20b) on a single ≤16 GB GPU with **no cloud and no third-party services**:
   client-side Harmony rendering over llama.cpp's raw endpoint, a hand-rolled single-agent
   ReAct tool-loop, a permission-gated sandbox, and **retrieval-free "navigate-don't-index"**
-  code context (glob→grep→read) plus a **staleness-aware on-device project memory**
-  (`local_mind.md`) — no vector DB / embedding model required.
-- **C2 — Method (headline novelty).** A **quantization-robustness layer** that restores
-  agentic reliability lost to quantization on small local models: (i) tolerant Harmony
-  parsing with **malformed-tool-call-header salvage**, (ii) **leaked-tool-call recovery**
-  (dispatching calls the model emits as prose/JSON in the wrong channel), and (iii) a
-  **tool-less synthesis fallback** that forces an answer when the model spins in
-  analysis-only turns. *(Optional extension: energy-adaptive reasoning-effort control.)*
-- **C3 — Evaluation.** An **offline eval harness + multi-language benchmark** that measures
-  quantization/serving configurations on **agentic** metrics — tool-call validity, task
-  success, turns, latency, VRAM, and energy — quantifying accuracy/energy/reliability
-  trade-offs for edge deployment, with **ablations** isolating each robustness mechanism.
-
-*(Secondary, if space: a security subsection — fail-closed permission model + treating tool
-outputs as untrusted for prompt-injection resistance.)*
+  code context (glob→grep→read) — no vector DB / embedding model / index required.
+- **C2 — Method (headline novelty).** A **reliability layer** that restores agentic
+  trustworthiness on a small local model: (i) tolerant Harmony parsing with
+  **malformed-tool-call-header salvage**, (ii) **leaked-tool-call recovery** (dispatching
+  calls the model emits as prose/JSON in the wrong channel), and (iii) a **tool-less
+  synthesis fallback** that forces an answer when the model spins in analysis-only turns —
+  paired with a **fail-closed permission model + sandbox** that treats tool output as
+  untrusted (the trust boundary for an air-gapped deployment).
+- **C3 — Evaluation.** An **offline trustworthiness evaluation** of the agent on **agentic**
+  metrics — tool-call validity, **faithfulness/grounding** (answers cite code actually read;
+  hallucination rate), task success, recovery/turn efficiency — with **ablations** isolating
+  each reliability mechanism, and a safety check of the permission boundary
+  (prompt-injection / unauthorized-write resistance).
 
 ---
 
 ## 5. Candidate titles
 
-1. *An Offline, Quantization-Robust LLM Code Agent for Air-Gapped Edge and Cyber-Physical Systems*
-2. *When Quantization Breaks Tool-Calling: A Reliability Layer for On-Device Code Agents*
-3. *Navigate, Don't Index: A Retrieval-Free, Energy-Aware Code Agent for Constrained Edge GPUs*
-4. *Privacy-Preserving Agentic Code Understanding at the Edge with gpt-oss-20b*
+1. *A Trustworthy Offline LLM Code Agent for Air-Gapped Edge and Cyber-Physical Systems*
+2. *Making a Small Local Code Agent Trustworthy: A Reliability Layer and Its Evaluation*
+3. *Navigate, Don't Index: A Retrieval-Free, Trustworthy Code Agent for the Edge*
+4. *Privacy-Preserving, Trustworthy Agentic Code Understanding at the Edge with gpt-oss-20b*
 
-Recommended: **#1** (system + novelty + venue keywords) or **#2** (leads with the novelty).
+Recommended: **#1** (system + venue keywords) or **#2** (leads with the novelty).
 
 ---
 
@@ -116,7 +115,6 @@ Map each component to a figure/paragraph. All of this already exists:
 | Inference client (sampling, KV) | `agent/inference.py` | serving config knobs measured in C3 |
 | Tool funnel (navigate-don't-index) | `agent/tools/` (list_dir/glob/grep/read) | retrieval-free context (C1) |
 | Permission engine + sandbox | `agent/permissions.py`, `agent/sandbox.py` | security model (secondary) |
-| On-device project memory | `agent/project_mind.py` (`local_mind.md`) | staleness-aware memory (C1) |
 | Offline tokenizer | `agent/harmony_codec.py` (vendored o200k) | fully-offline claim |
 | Eval harness + benchmark | *(to be rebuilt against small real repos)* | C3 |
 
@@ -127,47 +125,48 @@ Include an **architecture figure** (reuse `docs/architecture/architecture*.svg`)
 
 ## 8. Novelty deep-dive (the "method" section)
 
-- **8.1 Quantization → agentic failure modes.** Characterize *how* MXFP4/K-quant + KV-cache
-  quantization manifests in an agent: malformed tool-call headers (duplicated recipients),
-  tool calls leaked into the reasoning channel, and analysis-only "empty final" spins.
-  Quantify the base rate of each on the benchmark (this framing is itself a contribution).
-- **8.2 The robustness layer.** Describe the three mechanisms (salvage / leaked-call
+- **8.1 Agentic failure modes of a small local model.** Characterize *how* untrustworthy
+  behaviour manifests: malformed tool-call headers (duplicated recipients), tool calls leaked
+  into the reasoning channel, analysis-only "empty final" spins, and ungrounded/hallucinated
+  claims. Quantify the base rate of each on the benchmark (this framing is itself a contribution).
+- **8.2 The reliability layer.** Describe the three mechanisms (salvage / leaked-call
   recovery / tool-less synthesis) with a small algorithm box each, and where they sit in the
-  loop. Key claim: they recover reliability *without* changing the model or needing a larger one.
-- **8.3 Retrieval-free context + on-device memory.** Argue why "navigate-don't-index" +
-  a cached, staleness-triggered project map suits the edge (no embedding model, no vector
-  store, works on unseen repos, tiny footprint).
-- **8.4 (Optional) Energy-adaptive reasoning.** Propose choosing reasoning-effort per task
-  from a cheap complexity signal to cut Joules/task; report the energy/accuracy curve.
+  loop. Key claim: they recover trustworthiness *without* changing the model or needing a larger one.
+- **8.3 The trust boundary.** The fail-closed permission model + path sandbox, and treating
+  tool output as untrusted input — the safety guarantee that makes an autonomous local agent
+  acceptable for air-gapped/CPS use.
+- **8.4 Retrieval-free context.** Argue why "navigate-don't-index" (live glob→grep→read)
+  suits the edge — no embedding model, no vector store, no index to build or keep fresh;
+  works on unseen repos with a tiny footprint.
 
 ---
 
 ## 9. Experiments & evaluation plan
 
 **Research questions**
-- **RQ1 (reliability):** How much does quantization degrade tool-call validity and task
-  success vs a full-precision reference?
-- **RQ2 (novelty):** How much of that loss does the robustness layer recover? (ablations)
-- **RQ3 (efficiency):** What are the latency / VRAM / **energy-per-task** trade-offs across
-  quantization + KV-cache + context configs on the edge GPU?
+- **RQ1 (trustworthiness baseline):** How untrustworthy is the raw local model as an agent —
+  tool-call validity, faithfulness/grounding (hallucination rate), and task success?
+- **RQ2 (novelty):** How much does the reliability layer improve each of those? (ablations:
+  {off, salvage-only, +leaked-recovery, +synthesis (full)}).
+- **RQ3 (safety):** Does the permission model + sandbox hold against adversarial tool output
+  and unauthorized-write / path-escape attempts (prompt-injection resistance)?
 - **RQ4 (privacy/capability):** How does the offline agent compare to a cloud baseline on
   task success, and is the gap acceptable given the privacy guarantee? *(Upper-bound only —
   the point is "good enough, fully local," not beating the cloud.)*
 
 **Setup**
-- Hardware: the SRM-AP GPU box (record exact GPU, VRAM, driver); note ≤16 GB target.
-- Model/serving configs to sweep: MXFP4 (native) · GGUF `Q4_K_M/Q5_K_M/Q6_K/Q8_0` ·
-  KV-cache `f16/q8_0/q4_0` · context `32k/64k` · sampling `temp 0.6 vs 1.0, top_p 1.0` ·
-  reasoning `low/medium/high`.
-- Ablations (RQ2): robustness layer {off, salvage-only, +leaked-recovery, +synthesis (full)}.
+- Hardware: the SRM-AP GPU box (record exact GPU, VRAM, driver). Single fixed serving
+  config (native MXFP4, the box's KV/context) — **quantization is out of scope**; we report
+  the one configuration used, not a sweep.
+- Sampling/reasoning held fixed (report the values); vary only the reliability-layer ablation.
 
-**Metrics** (the harness already emits most)
+**Metrics** (mostly emitted by the loop already)
 - Tool-call validity rate (strict-parse fails + salvage + leaked recoveries).
-- Task success rate (objective checks / test suites).
-- Turns-to-completion, recovery/empty-final rate.
-- Latency (tokens/s at 2k & 32k, time-to-first-token), peak VRAM (`nvidia-smi`).
-- **Energy per task** (J) — `nvidia-smi --query-gpu=power.draw` integrated over wall-clock,
-  or a wall-plug meter; report J/task and tokens/J.
+- **Faithfulness / grounding**: fraction of claims traceable to code the agent read;
+  hallucination rate (SelfCheckGPT-style self-consistency; G-Eval rubric as a secondary judge).
+- Task success rate (objective checks / test suites); turns-to-completion; recovery rate.
+- Safety: unauthorized-write / path-escape attempts blocked (should be 100%).
+- Latency (tokens/s, time-to-first-token) as a secondary efficiency note.
 
 **Benchmark** *(to be assembled — the earlier synthetic fixture + harness were removed)*
 - Assemble **2–4 small real OSS repos** (different languages) with objective checks
@@ -178,16 +177,17 @@ Include an **architecture figure** (reuse `docs/architecture/architecture*.svg`)
 - Report per-category (locate/explain/edit/run-fix) and aggregate.
 
 **Baselines**
-- Full-precision (or highest-bit that fits) reference — upper bound for RQ1.
-- Robustness-layer-OFF — the key contrast for RQ2.
+- Reliability-layer-**OFF** — the key contrast for RQ2.
 - (Optional) a RAG/embedding retrieval baseline for the navigate-don't-index claim.
 - (Optional, clearly framed) one cloud LLM as a capability ceiling for RQ4.
 
 **Expected results / hypotheses (fill with real numbers)**
-- H1: quantization drops tool-call validity by a measurable margin vs full precision.
-- H2: the robustness layer recovers most of that drop (headline table + ablation).
-- H3: MXFP4 + q8_0 KV is the accuracy/energy sweet spot on ≤16 GB (supports the serving
-  strategy already documented in the repo).
+- H1: the raw local model has a measurable base rate of invalid tool calls and ungrounded
+  claims (RQ1).
+- H2: the reliability layer improves tool-call validity, faithfulness, and task success
+  (headline table + ablation).
+- H3: the permission model + sandbox block 100% of unauthorized-write / path-escape /
+  injected-instruction attempts (RQ3).
 
 ---
 
@@ -205,13 +205,15 @@ Include an **architecture figure** (reuse `docs/architecture/architecture*.svg`)
 
 ## 11. Related work to read & cite (build the bibliography)
 
-- Edge / on-device LLM inference (llama.cpp, MoE serving, quantized deployment).
-- Quantization: GGUF k-quants, MXFP4/NVFP4, KV-cache quantization; QAT vs PTQ.
-- Agentic coding & tool use: ReAct, SWE-bench / HumanEval, tool-call reliability studies.
-- Structured decoding / function-calling robustness.
-- Privacy-preserving / on-prem code AI; retrieval-augmented vs retrieval-free code context.
-- Trustworthiness/eval: SelfCheckGPT, G-Eval, TrustLLM (see
+- **Trustworthiness / evaluation (primary):** TrustLLM, SelfCheckGPT, G-Eval, RAGAS;
+  faithfulness/grounding and hallucination measurement (see
   `docs/research/evaluation-and-trustworthiness.md`).
+- Agentic coding & tool use: ReAct, SWE-bench / SWE-agent / CodeAct, tool-call reliability
+  studies (Berkeley Function-Calling Leaderboard).
+- Structured decoding / function-calling robustness.
+- Safety of tool-using agents: prompt-injection, sandboxing, permission models.
+- Privacy-preserving / on-prem code AI; retrieval-augmented vs retrieval-free code context.
+- Edge / on-device LLM inference (llama.cpp, MoE serving) — background, not the focus.
 
 ---
 
@@ -266,7 +268,7 @@ Post-submission: acceptance Nov 01 → register by Nov 10 → camera-ready → p
 ## 15. Gap list — have vs. build for the paper
 
 **Already have:** offline agent, client-side Harmony + robustness layer (C2), permission
-model, `local_mind.md`, serving-strategy findings.
+model, serving-strategy findings.
 
 **Build/measure for the paper:**
 - [ ] Rebuild the eval harness (headless driver + benchmark repos) with energy/latency/VRAM logging (per-task J, tokens/J, peak VRAM).

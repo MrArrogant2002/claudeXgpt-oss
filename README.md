@@ -26,7 +26,6 @@ are for the **model machine**.
 | `agent/sandbox.py` | Path sandbox (blocks escapes outside the project root) |
 | `agent/permissions.py`, `agent/edits.py` | Write-tier permission engine + atomic edits/backups |
 | `agent/context.py`, `agent/compact.py` | Result budgeting; drop stale reasoning; compaction |
-| `agent/project_mind.py` | `local_mind.md` project map (build/inject/staleness) |
 | `agent/tools/` | `list_dir`, `glob`, `grep`, `read`, `bash`, `edit`/`write`/`multi_edit` + registry |
 | `agent/loop.py` | Orchestration loop (render→infer→parse→dispatch→recover→repeat) |
 | `agent/ui/` + `tui.py` | Interactive Claude Code–style TUI (the entry point) |
@@ -86,24 +85,7 @@ together (see the env-var table). gpt-oss's recommendation is `temperature=1.0,
 top_p=1.0`; the agent defaults a bit lower for steadier tool-call formatting, with the
 malformed-header salvage as a backstop. A/B `AGENT_TEMPERATURE=1.0` on the box.
 
-## Step 2 — (recommended) build the project map — `local init`
-
-Once per repo, have the agent read the codebase and write **`local_mind.md`** — the
-offline equivalent of a `CLAUDE.md`: a concise, grounded orientation doc (overview,
-build/test commands, architecture, key modules, entry points, conventions, gotchas).
-In the TUI, run **`/init`** any time to build or rebuild it.
-
-Every later query auto-loads `local_mind.md` as project context, so the agent starts
-oriented instead of re-deriving the layout each turn (toggle with `AGENT_LOCAL_MIND=0`).
-A fingerprint of the source tree is saved alongside it (`.local_mind.sig.json`,
-git-ignored); when the code changes **massively** (many files added/removed/resized, or a
-git HEAD move with edits), the TUI flags `local_mind.md` as stale at startup and suggests
-`/init`. Set `AGENT_MIND_AUTO_REFRESH=1` to regenerate automatically instead.
-
-> `/init` needs the model server running (it's a full analysis pass). Thresholds:
-> `AGENT_MIND_STALE_FILES` (default 8) and `AGENT_MIND_STALE_RATIO` (default 0.15).
-
-## Step 3 — run the agent (TUI)
+## Step 2 — run the agent (TUI)
 
 Point it at the repo you want to ask about with `--project`, then type your questions:
 
@@ -114,7 +96,7 @@ python tui.py --project /path/to/repo
 The answer **streams token-by-token** as the model generates it (`--no-stream` to
 disable; it auto-falls-back if your llama.cpp build lacks streaming). With
 `prompt_toolkit` installed you get input **history** (↑/↓) and **`/`-command
-autocomplete**. Slash commands: `/help`, `/init`, `/reasoning low|medium|high`,
+autocomplete**. Slash commands: `/help`, `/reasoning low|medium|high`,
 `/show-reasoning`, `/exec on|off`, `/mode plan|ask|accept`, `/model`, `/tokens`,
 `/shortcuts`, `/clear`, `/exit`. **`Ctrl-C` interrupts a running turn instantly**
 (aborts generation mid-stream). Add `--allow-exec` for the `bash` tool and
@@ -165,11 +147,12 @@ model's thinking.
 | `AGENT_ALLOW_EXEC` | off | `1`/`true` enables the `bash` tool without `--allow-exec` |
 | `AGENT_EXEC_TIMEOUT` | `60` | default seconds before a `bash` command is killed |
 | `AGENT_EXEC_TIMEOUT_MAX` | `300` | hard cap the model's per-command `timeout` can't exceed |
+| `AGENT_BASH_PERSISTENT` | on | one persistent shell (env/cd/venv persist); `0` = fresh shell per call |
+| `AGENT_BASH_RESTRICTED` | off | `1` re-enables the destructive-command deny-list (for a networked/untrusted mode) |
 | `AGENT_ALLOW_EDIT` | off | `1`/`true` enables the write tools without `--allow-edit` |
 | `AGENT_PERMISSION_MODE` | `plan` | default write-tier permission mode (see `--permission-mode`) |
 | `AGENT_EDIT_MAX_BYTES` | `2000000` | refuse writes larger than this |
 | `AGENT_EDIT_BACKUP_DIR` | `.agent-backups` | per-project dir where prior file bytes are backed up (git-ignored) |
-| `AGENT_LOCAL_MIND` | on | set `0` to disable auto-injecting `local_mind.md` |
 | `AGENT_PROJECT_ROOT` | cwd | default project root (or use `--project`) |
 | `AGENT_TOOL_RESULT_CAP` | `12000` | max chars per tool result |
 | `AGENT_READ_DEFAULT_LINES` | `300` | lines `read` returns when no end line is given |
@@ -183,7 +166,7 @@ model's thinking.
 
 ```
 your question
-  → drop stale reasoning from prior turns, add your message (+ local_mind.md context)
+  → drop stale reasoning from prior turns, add your message
   → (if the prompt is near the context window: summarize older turns — "compaction")
   → render Harmony (system + developer[tools] + history) → token IDs
   → llama.cpp /completion (raw) → output token IDs
@@ -203,18 +186,21 @@ agent, serial in-process tools (no MCP), fully local. The navigation tools are
 ### Running code to find errors (`--allow-exec`)
 
 By default the agent can only *read* code. `--allow-exec` (or `/exec on` in the TUI)
-adds a **`bash`** tool so it can **compile / lint / type-check / test** the project and
-find real errors — the model runs a command, reads the stderr, and `read`s the cited
-`file:line` to explain or fix it.
+adds a **`bash`** tool so it can **compile / lint / type-check / test** the project,
+**install missing dependencies**, and find real errors. Commands run in **one persistent
+shell** with the project's **venv auto-activated**, so `cd`, `export`, and installs
+persist across calls exactly like your terminal (the model runs a command, reads the
+stderr, installs what's missing into the venv, and retries).
 
-⚠ **This runs arbitrary shell commands with your user's privileges, with no
-container.** A repo you don't know can carry a hostile `conftest.py`, `Makefile`, or
-build script that runs as you. Guardrails: it's **off unless you enable it**, a
-deny-list blocks catastrophic commands (`rm -rf`, `sudo`, `git push`, `pip install`,
-fork bombs, disk writes…), every command is echoed, and each run has a hard timeout
-(`AGENT_EXEC_TIMEOUT`, capped by `AGENT_EXEC_TIMEOUT_MAX`). These are guardrails,
-**not a sandbox** — only enable it for code you trust, and prefer running the whole
-agent inside a container.
+⚠ **This runs arbitrary shell commands with your user's privileges, with no container.**
+For fully-local / air-gapped use the shell is **unrestricted by design** (installs,
+deletes, arbitrary commands) — the offline environment *is* the boundary. A
+destructive-command deny-list (`rm -rf /`, `sudo`, fork bombs, raw-disk writes…) is kept
+in the code and re-enabled with **`AGENT_BASH_RESTRICTED=1`** — the switch a future
+networked or untrusted deployment turns on. Every command is echoed and has a hard
+timeout (`AGENT_EXEC_TIMEOUT`, capped by `AGENT_EXEC_TIMEOUT_MAX`). The path sandbox and
+the write-tier permission engine remain the real trust boundary; still prefer a container
+for code you don't trust. Set `AGENT_BASH_PERSISTENT=0` for a fresh shell per command.
 
 ### Changing code — the write tier (`--allow-edit`)
 

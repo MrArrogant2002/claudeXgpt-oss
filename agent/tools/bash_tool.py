@@ -1,17 +1,18 @@
-"""bash tool (opt-in) — run a shell command in the project root and return its
-stdout, stderr, and exit code, so the agent can COMPILE / LINT / TYPE-CHECK /
-TEST the code and surface real errors, not just read it.
+"""bash tool (opt-in) — run a shell command and return its output + exit code, so the
+agent can COMPILE / LINT / TEST the code, install missing dependencies, and surface real
+errors, not just read it.
 
-SAFETY: this executes arbitrary commands with your user's privileges. It is
-DISABLED unless the agent is started with --allow-exec (or AGENT_ALLOW_EXEC=1).
-There is NO container: a hostile repo's build script or test file runs as you.
-Guardrails here are best-effort, not a security boundary:
-  - a deny-list blocks obviously catastrophic commands,
-  - a hard timeout kills long/hung runs,
-  - the exact command is echoed back for transparency,
-  - commands run under real `bash -c` when available (else the platform shell).
-Prefer running this inside a container. Only enable it for code you trust enough
-to run on this machine.
+By default commands run in ONE persistent bash session per project (see shell_session.py),
+so `cd`, `export`, and an activated venv persist across calls exactly like the user's
+terminal. Set AGENT_BASH_PERSISTENT=0 for a fresh `bash -c` per call.
+
+SAFETY: this executes arbitrary commands with your user's privileges and is DISABLED unless
+the agent is started with --allow-exec (or AGENT_ALLOW_EXEC=1). There is NO container. For
+fully-local/air-gapped use the command is UNRESTRICTED by design; a destructive-command
+deny-list is kept in the code and re-enabled with AGENT_BASH_RESTRICTED=1 (the switch a
+future networked or untrusted deployment turns on). The path sandbox and the write-tier
+permission engine remain the real trust boundary; prefer running the whole agent in a
+container when the repo is not trusted.
 """
 
 import os
@@ -21,11 +22,11 @@ import subprocess
 
 from .. import config
 from .base import Tool
+from .shell_session import ShellSession, find_venv_activate
 
-# Best-effort deny-list: patterns that are almost never legitimate for a
-# compile/lint/test agent and would be destructive. This is a guardrail against
-# the model fat-fingering something catastrophic, NOT a sandbox — string matching
-# cannot make arbitrary execution safe.
+# Destructive-command deny-list. Applied ONLY when config.BASH_RESTRICTED is set (a future
+# networked/untrusted mode); kept here, not deleted, so that switch re-enables it. It was
+# never a security boundary — string matching cannot make arbitrary execution safe.
 _DENY = [
     r"\brm\s+-[rf]{1,2}\b.*(?:/|~|\*)",  # rm -rf on / ~ or globs
     r"\bmkfs\b",
@@ -40,73 +41,60 @@ _DENY = [
     r"\b(?:mv|cp)\s+.*\s+/(?:bin|etc|usr|boot|dev|sys|lib)\b",
     r"\bformat\s+[A-Za-z]:",  # windows: format C:
     r"\bdel\s+/[sqfSQF]",  # windows: del /s /q /f
-    r"\bpip\s+(?:install|uninstall)\b",  # no dependency changes
-    r"\bnpm\s+(?:install|i|ci|uninstall)\b",
 ]
 _DENY_RE = [re.compile(p, re.IGNORECASE) for p in _DENY]
 
-_MAX_STREAM = 20000  # chars kept per stream before the loop's own budgeting
+_MAX_STREAM = 20000  # chars kept before the loop's own budgeting
+
+# One persistent session per project root (created on first use).
+_SESSIONS: dict[str, ShellSession] = {}
 
 
-def _tail(s):
+def _tail(s: str) -> str:
     if not s or len(s) <= _MAX_STREAM:
         return s or ""
     return f"... [truncated {len(s) - _MAX_STREAM} chars] ...\n" + s[-_MAX_STREAM:]
 
 
-def _bash(args, sandbox):
-    if not config.ALLOW_EXEC:
-        return (
-            "ERROR: command execution is disabled. Start the agent with --allow-exec "
-            "(or set AGENT_ALLOW_EXEC=1) to enable the bash tool."
-        )
-    command = (args.get("command") or "").strip()
-    if not command:
-        return "ERROR: no command given"
-    for rx in _DENY_RE:
-        if rx.search(command):
-            return (
-                f"REFUSED: command matches a blocked destructive pattern "
-                f"(/{rx.pattern}/). Not run. Rephrase to a read-only check "
-                f"(compile/lint/test); this tool must not install, publish, or delete."
-            )
+def _session_for(root: str) -> ShellSession:
+    sess = _SESSIONS.get(root)
+    if sess is None:
+        sess = ShellSession(root, find_venv_activate(root))
+        _SESSIONS[root] = sess
+    return sess
 
-    timeout = args.get("timeout") or config.EXEC_TIMEOUT
-    try:
-        timeout = max(1, min(int(timeout), config.EXEC_TIMEOUT_MAX))
-    except (TypeError, ValueError):
-        timeout = config.EXEC_TIMEOUT
 
-    # Prefer real bash (consistent semantics on the Windows/MINGW box too); fall
-    # back to the platform shell (cmd.exe / sh) if bash isn't on PATH.
+def _run_persistent(command: str, root: str, timeout: int) -> str:
+    code, output = _session_for(root).run(command, timeout)
+    body = _tail(output)
+    parts = [f"$ {command}", f"[exit {code}]"]
+    parts.append(body.rstrip() if body.strip() else "(no output)")
+    return "\n".join(parts)
+
+
+def _run_oneshot(command: str, root: str, timeout: int) -> str:
+    """Fallback (AGENT_BASH_PERSISTENT=0): a fresh shell per call — loses cd/env/venv."""
     bash = shutil.which("bash")
+    activate = find_venv_activate(root)
     if bash:
-        argv, use_shell = [bash, "-c", command], False
+        prefixed = f". '{activate}' 2>/dev/null; {command}" if activate else command
+        argv: list[str] | str = [bash, "-c", prefixed]
+        use_shell = False
     else:
         argv, use_shell = command, True
-
     env = dict(os.environ)
     env.setdefault("PYTHONIOENCODING", "utf-8")
     try:
         proc = subprocess.run(
-            argv,
-            shell=use_shell,
-            cwd=str(sandbox.root),
-            capture_output=True,
-            text=True,
-            errors="replace",
-            timeout=timeout,
-            env=env,
+            argv, shell=use_shell, cwd=root, capture_output=True, text=True,
+            errors="replace", timeout=timeout, env=env,
         )
     except subprocess.TimeoutExpired as e:
         partial = e.stdout if isinstance(e.stdout, str) else ""
-        return (
-            f"$ {command}\n[timed out after {timeout}s — process killed]\n"
-            + _tail(partial)
-        ).rstrip()
+        return (f"$ {command}\n[timed out after {timeout}s — process killed]\n"
+                + _tail(partial)).rstrip()
     except (OSError, ValueError) as e:
         return f"$ {command}\nERROR: could not run: {type(e).__name__}: {e}"
-
     parts = [f"$ {command}", f"[exit {proc.returncode}]"]
     out, err = _tail(proc.stdout), _tail(proc.stderr)
     if out.strip():
@@ -118,16 +106,50 @@ def _bash(args, sandbox):
     return "\n".join(parts)
 
 
+def _bash(args, sandbox):
+    if not config.ALLOW_EXEC:
+        return (
+            "ERROR: command execution is disabled. Start the agent with --allow-exec "
+            "(or set AGENT_ALLOW_EXEC=1) to enable the bash tool."
+        )
+    command = (args.get("command") or "").strip()
+    if not command:
+        return "ERROR: no command given"
+
+    # Destructive-command guard — only in restricted (networked/untrusted) mode.
+    if config.BASH_RESTRICTED:
+        for rx in _DENY_RE:
+            if rx.search(command):
+                return (
+                    f"REFUSED: command matches a blocked destructive pattern "
+                    f"(/{rx.pattern}/) and AGENT_BASH_RESTRICTED is set. Not run."
+                )
+
+    timeout = args.get("timeout") or config.EXEC_TIMEOUT
+    try:
+        timeout = max(1, min(int(timeout), config.EXEC_TIMEOUT_MAX))
+    except (TypeError, ValueError):
+        timeout = config.EXEC_TIMEOUT
+
+    root = str(sandbox.root)
+    if config.BASH_PERSISTENT:
+        try:
+            return _run_persistent(command, root, timeout)
+        except (OSError, FileNotFoundError):
+            return _run_oneshot(command, root, timeout)  # bash-session spawn failed
+    return _run_oneshot(command, root, timeout)
+
+
 bash_tool = Tool(
     name="bash",
     description=(
-        "Run a shell command in the project root and return its stdout, stderr, and "
-        "exit code. Use this to COMPILE, LINT, TYPE-CHECK, or TEST the code and find "
-        "real errors — e.g. `python -m py_compile path/to/file.py`, `pytest -x -q`, "
-        "`ruff check .`, `tsc --noEmit`, `cargo check`, `go build ./...`. A non-zero "
-        "exit code means it failed: read the stderr, then use `read` on the cited "
-        "file:line to explain or fix the error. Do NOT install packages, push, or use "
-        "the network — run checks only."
+        "Run a shell command and return its combined output and exit code. Commands run in "
+        "a persistent shell with the project's virtualenv already activated, so `cd`, "
+        "`export`, and installs persist across calls. Use it to COMPILE / LINT / TYPE-CHECK "
+        "/ TEST the code (e.g. `pytest -x -q`, `ruff check .`, `python -m py_compile f.py`). "
+        "If a run fails for a missing package, install it into the venv (e.g. `pip install "
+        "<pkg>`) and retry, then tell the user what you installed. A non-zero exit code means "
+        "it failed: read the stderr, then `read` the cited file:line to explain or fix it."
     ),
     parameters={
         "type": "object",

@@ -21,7 +21,6 @@ Pieces involved:
 - **Agent core:** an orchestration loop, an inference client, a Harmony codec, context/compaction, config.
 - **Tools:** `list_dir`, `glob`, `grep`, `read` (read-only funnel); `bash` (opt-in exec); `edit`/`write`/`multi_edit` (permission-gated write tier).
 - **Safety:** a path sandbox + a Claude-style permission engine.
-- **Project memory:** `local init` (TUI `/init`) → `local_mind.md` (offline CLAUDE.md), auto-injected into queries.
 - **Front-end:** `tui.py` (interactive Claude-Code-style TUI).
 - **Evaluation:** an eval harness + benchmark to be assembled against small real repos (the earlier synthetic fixture was removed).
 
@@ -109,7 +108,6 @@ llama-server (gpt-oss-20b, MXFP4)  ◀── HTTP /completion (token IDs) ──
   agent/sandbox.py     — path jail (no escaping the project root)
   agent/permissions.py — Claude-style permission engine (plan/ask/accept/…)
   agent/edits.py       — read-before-write freshness, atomic writes, diffs
-  agent/project_mind.py— local_mind.md build/inject + staleness (local init)
   agent/tools/         — list_dir, glob, grep, read, bash, edit/write/multi_edit
   agent/ui/            — app.py (REPL), render.py, theme.py, banner.py, session.py
   tui.py               — the interactive TUI front-end
@@ -156,7 +154,6 @@ The code carries milestone markers (M0–M5); later capabilities were layered on
 | **Exec** | `bash` tool (opt-in, deny-list, timeouts) for compile/lint/test | fixture with a failing test |
 | **Write tier** | `edit`/`write`/`multi_edit` + `permissions.py` + `edits.py` (atomic, backups, freshness) | permission-gate + overwrite-guard tests |
 | **TUI polish** | permission modes, `/`-commands, streaming, espresso theme | offline render tests |
-| **Project memory** | `project_mind.py`: `local init` → `local_mind.md`, auto-inject, staleness | mocked run_turn injection tests |
 | **Robustness fixes** | tokenizer salvage hardening, tool accuracy (glob ignore/recency, grep context, read binary), tool-less synthesis fallback | offline mock suites |
 
 > Scope note: an LSP tool and a headless CLI + synthetic benchmark were built and later
@@ -179,10 +176,10 @@ Live model runs happen only on the GPU box after `git pull`.
 ```bash
 # on the box, model up (see 3.3)
 python tui.py --project ./repo                              # interactive; type questions
-python tui.py --project ./repo --allow-exec --allow-edit   # + run/edit code; /init builds local_mind.md
+python tui.py --project ./repo --allow-exec --allow-edit   # + run and edit code
 ```
 Key env knobs (`agent/config.py`): `AGENT_BASE_URL`, `AGENT_TEMPERATURE`/`AGENT_TOP_P`,
-`AGENT_MAX_TOKENS`(+`_CAP`), `AGENT_REASONING`, `AGENT_CONTEXT_TOKENS`, `AGENT_LOCAL_MIND`.
+`AGENT_MAX_TOKENS`(+`_CAP`), `AGENT_REASONING`, `AGENT_CONTEXT_TOKENS`.
 
 ---
 
@@ -209,7 +206,7 @@ Grouped by relevance to this system. *arXiv ids given where confident — confir
 - **Program Synthesis with LLMs (MBPP)** — Austin et al., 2021 (arXiv:2108.07732).
 
 ### Autonomous agents & memory
-- **Voyager: An Open-Ended Embodied Agent with LLMs** — Wang et al., 2023 (arXiv:2305.16291). *Skill/memory accumulation — conceptual kin to `local_mind.md`.*
+- **Voyager: An Open-Ended Embodied Agent with LLMs** — Wang et al., 2023 (arXiv:2305.16291). *Skill/memory accumulation in agents.*
 - **Generative Agents: Interactive Simulacra of Human Behavior** — Park et al., 2023 (arXiv:2304.03442). *Memory + reflection.*
 - **The Rise and Potential of LLM-Based Agents: A Survey** — Xi et al., 2023 (arXiv:2309.07864). *Broad map of the field.*
 

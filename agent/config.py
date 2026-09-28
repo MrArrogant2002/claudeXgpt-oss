@@ -66,6 +66,15 @@ READ_DEFAULT_LINES = int(os.environ.get("AGENT_READ_DEFAULT_LINES", "300"))
 ALLOW_EXEC = os.environ.get("AGENT_ALLOW_EXEC", "") not in ("", "0", "false", "False")
 EXEC_TIMEOUT = int(os.environ.get("AGENT_EXEC_TIMEOUT", "60"))  # default per command (s)
 EXEC_TIMEOUT_MAX = int(os.environ.get("AGENT_EXEC_TIMEOUT_MAX", "300"))  # hard cap (s)
+# Persistent shell: run every bash command in ONE long-lived bash session so `cd`,
+# `export`, and an activated venv persist across calls (like the user's terminal).
+# Set AGENT_BASH_PERSISTENT=0 to fall back to a fresh `bash -c` per call.
+BASH_PERSISTENT = os.environ.get("AGENT_BASH_PERSISTENT", "1") not in ("0", "false", "False")
+# Local default: bash is UNRESTRICTED (installs, deletes, arbitrary commands) because the
+# whole system is offline/air-gapped. The destructive-command deny-list is kept in the code
+# but only applied when AGENT_BASH_RESTRICTED=1 — the single switch a future networked or
+# untrusted deployment turns on.
+BASH_RESTRICTED = os.environ.get("AGENT_BASH_RESTRICTED", "") not in ("", "0", "false", "False")
 
 # --- write tier (opt-in, permission-gated, off by default) ------------------
 # The write tools (edit/write/multi_edit) let the model CHANGE files. They are
@@ -76,18 +85,6 @@ ALLOW_EDIT = os.environ.get("AGENT_ALLOW_EDIT", "") not in ("", "0", "false", "F
 PERMISSION_MODE = os.environ.get("AGENT_PERMISSION_MODE", "plan")  # plan|default|acceptEdits|bypassPermissions|dontAsk
 EDIT_MAX_BYTES = int(os.environ.get("AGENT_EDIT_MAX_BYTES", str(2_000_000)))  # refuse absurd writes
 EDIT_BACKUP_DIRNAME = os.environ.get("AGENT_EDIT_BACKUP_DIR", ".agent-backups")  # under the project root
-
-# --- local project memory (local_mind.md) -----------------------------------
-# `local init` writes local_mind.md (the offline analog of CLAUDE.md); every query
-# then injects it as project context. Toggle the injection with AGENT_LOCAL_MIND=0.
-USE_LOCAL_MIND = os.environ.get("AGENT_LOCAL_MIND", "1") not in ("0", "false", "False")
-MIND_CONTEXT_CAP = int(os.environ.get("AGENT_MIND_CONTEXT_CAP", "8000"))  # chars injected/turn
-# "Massive change" thresholds for the stale check (whichever trips first):
-MIND_STALE_FILES = int(os.environ.get("AGENT_MIND_STALE_FILES", "8"))  # abs changed source files
-MIND_STALE_RATIO = float(os.environ.get("AGENT_MIND_STALE_RATIO", "0.15"))  # fraction of the tree
-# Off by default: notify + let the user run /init. Set AGENT_MIND_AUTO_REFRESH=1 to
-# have the TUI regenerate local_mind.md automatically when it detects a big change.
-MIND_AUTO_REFRESH = os.environ.get("AGENT_MIND_AUTO_REFRESH", "") not in ("", "0", "false", "False")
 
 # --- long-session compaction (M5) ------------------------------------------
 # Server context window in tokens. Auto-detected from /props at startup when

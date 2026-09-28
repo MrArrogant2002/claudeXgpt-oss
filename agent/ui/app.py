@@ -326,11 +326,11 @@ class App:
 
     def _run_turn_threaded(
         self, q, history, *, instructions=None, reasoning=None,
-        max_turns=None, stream=None, load_mind=True,
+        max_turns=None, stream=None,
     ):
         """Run ONE agent turn on a worker thread, pumping events to the UI. Returns
         (result, interrupted, state). Does NOT mutate self.history or print the
-        outcome — the caller (ask / _run_init) decides what to do with the result."""
+        outcome — the caller decides what to do with the result."""
         events_q = queue.Queue()
         result = {}
         cancel = threading.Event()
@@ -357,7 +357,6 @@ class App:
                     on_delta=on_delta,
                     can_use_tool=self.can_use_tool,
                     max_turns=max_turns,
-                    load_mind=load_mind,
                 )
                 result["res"], result["hist"] = res, hist
             except Exception as e:  # never let the worker kill the REPL
@@ -400,74 +399,6 @@ class App:
             if state["answering"] or state["thinking"]:
                 self._p()  # close any open streamed line
         return result, interrupted, state
-
-    # --- local init (build local_mind.md) -----------------------------------
-    def _run_init(self):
-        """Scan the repo and (re)write local_mind.md — the offline CLAUDE.md."""
-        from .. import project_mind
-
-        self._p()
-        self._p(render.system_note(
-            f"scanning the codebase to build {project_mind.MIND_FILENAME} — this runs a "
-            "full analysis and can take a few minutes. Press Esc/Ctrl-C to cancel."
-        ))
-        before = inference.usage_snapshot()
-        result, interrupted, state = self._run_turn_threaded(
-            project_mind.INIT_PROMPT,
-            [],  # throwaway history — don't pollute the conversation
-            instructions=project_mind.INIT_INSTRUCTIONS,
-            reasoning="high",
-            max_turns=max(config.MAX_TURNS, project_mind.INIT_MAX_TURNS),
-            stream=False,
-            load_mind=False,  # don't feed the old map into the run that rebuilds it
-        )
-        self._print_status(before)
-        if "err" in result:
-            self._p(render.error_line(f"init failed: {result['err']}"))
-            return
-        res = result.get("res")
-        if interrupted or res is None:
-            self._p(render.system_note("init cancelled — local_mind.md not written."))
-            return
-        if res.reason != "completed" or not (res.answer or "").strip():
-            self._p(render.error_line(
-                f"init did not produce a document ({res.reason}). "
-                "Try /reasoning high and run /init again."
-            ))
-            return
-        path, sig = project_mind.save(self.sandbox.root, res.answer)
-        n_lines = (res.answer or "").count("\n") + 1
-        self._p(render.system_note(
-            f"wrote {project_mind.MIND_FILENAME} ({n_lines} lines, {sig['file_count']} "
-            "files scanned) — future queries will use it automatically. "
-            "Re-run /init after big changes."
-        ))
-
-    def _maybe_notice_mind(self):
-        """At startup: confirm the project map loaded, or nudge to build/refresh it."""
-        from .. import project_mind
-
-        if not config.USE_LOCAL_MIND:
-            return
-        if project_mind.read_mind(self.sandbox.root) is None:
-            self._p(render.system_note(
-                "no local_mind.md yet — run /init to build a project map the agent uses "
-                "to answer faster and more accurately."
-            ))
-            return
-        try:
-            stale, reason = project_mind.is_stale(self.sandbox.root)
-        except Exception:
-            stale, reason = False, ""
-        if stale and config.MIND_AUTO_REFRESH:
-            self._p(render.system_note(f"local_mind.md is stale ({reason}); refreshing…"))
-            self._run_init()
-        elif stale:
-            self._p(render.system_note(
-                f"local_mind.md may be stale — {reason}. Run /init to refresh it."
-            ))
-        else:
-            self._p(render.system_note("loaded local_mind.md for project context."))
 
     def _print_outcome(self, result, interrupted, streamed=False):
         if "err" in result:
@@ -551,8 +482,6 @@ class App:
             self._set_mode(arg)
         elif cmd == "model":
             self._print_model_info()
-        elif cmd in ("init", "local-init", "localinit"):
-            self._run_init()
         elif cmd in ("shortcuts", "keys"):
             self._print_shortcuts()
         else:
@@ -618,7 +547,6 @@ class App:
     def _print_help(self):
         rows = [
             ("/help", "show this help"),
-            ("/init", "scan the repo and (re)build local_mind.md (project map)"),
             ("/clear", "clear the screen and conversation history"),
             ("/reasoning low|medium|high", "set reasoning effort"),
             ("/show-reasoning", "toggle showing the model's thinking"),
@@ -651,7 +579,6 @@ class App:
                 server_ok=server_ok,
             )
         )
-        self._maybe_notice_mind()
         while True:
             try:
                 line = self._read_line()
