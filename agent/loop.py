@@ -112,23 +112,23 @@ def _run_tool_call(registry, name, args, sandbox, can_use_tool, on_event):
 # Terse on purpose: the model is instruction-tuned. A short prompt also frees context
 # on a small window. Note it does NOT force tool use — the model decides when to search.
 DEFAULT_INSTRUCTIONS = (
-    "You are a code agent working inside a repository. Check the code with the tools "
-    "(list_dir, glob, grep, read) before stating facts about it, and cite paths. All paths "
-    "are relative to the project root: each `bash` command starts there and a `cd` lasts "
-    "only within that one command. When a question is about you, or cannot be answered from "
-    "the repo, answer directly without searching. Reply in short plain text; do not modify "
+    "You are a coding agent working inside a repository. Check the code with the tools "
+    "(list_dir, glob, grep, read) before stating facts about it, and cite paths relative "
+    "to the project root. When a question is about you, or cannot be answered from the "
+    "repo, answer directly without searching. Reply in short plain text; do not modify "
     "files unless asked."
 )
 
 # Appended only when the matching tools are registered, so we never name a tool the
 # model doesn't have. Kept terse.
 EXEC_INSTRUCTIONS = (
-    " You can run shell commands with `bash` in a persistent shell with the project venv "
-    "active (build/lint/test, then read the errors). Run tools via `python -m` (e.g. "
-    "`python -m pytest`) so they use the venv, not a global copy. If a run fails for a "
-    "missing package, install it into the venv and retry, and tell the user what you "
-    "installed; for a Python package repo whose own tests import it, `pip install -e .` "
-    "first. Only report a check as passing if you actually saw it pass."
+    " You can run shell commands with `bash` in a persistent shell: the environment and the "
+    "project venv stay active across commands, but each command starts at the project root "
+    "and a `cd` lasts only within that one command (build/lint/test, then read the errors). "
+    "Run tools via `python -m` (e.g. `python -m pytest`) so they use the venv, not a global "
+    "copy. If a run fails for a missing package, install it into the venv and retry, and "
+    "tell the user what you installed; for a Python package repo whose own tests import it, "
+    "`pip install -e .` first. Only report a check as passing if you actually saw it pass."
 )
 
 EDIT_INSTRUCTIONS = (
@@ -270,7 +270,9 @@ def run_turn(
     instructions = instructions or DEFAULT_INSTRUCTIONS
     if registry.get("bash"):  # execution enabled -> teach the model to use it
         instructions = instructions + EXEC_INSTRUCTIONS
-    if registry.get("edit"):  # write tier enabled -> teach the model to use it
+    # Any write-tier tool enables the edit guidance. edit/write/multi_edit ship together
+    # today, but gate on all three so a write-only registry still gets the instructions.
+    if registry.get("edit") or registry.get("write") or registry.get("multi_edit"):
         instructions = instructions + EDIT_INSTRUCTIONS
 
     # New user turn: drop stale chain-of-thought from prior turns, then add input.
