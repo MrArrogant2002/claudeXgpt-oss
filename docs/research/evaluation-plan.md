@@ -128,6 +128,20 @@ window. Sweep it and show the trade-off.
 
 ## 4. Agentic-systems evaluation — landscape and what to adopt
 
+**How the field evaluates agentic systems (positioning).** Frontier labs report a fairly
+consistent battery: for *coding agents*, a **test-verified resolve rate** on real issues
+(SWE-bench / SWE-bench Verified) and terminal/agent-interface benchmarks (SWE-agent,
+Terminal-Bench); for *tool use*, function-call correctness (BFCL) and multi-turn
+tool-agent-user tasks scored by both success and **reliability across repeated trials**
+(τ-bench's `pass^k`); for *general agency*, web/OS/embodied suites (GAIA, WebArena, OSWorld,
+Mind2Web); and for *safety*, prompt-injection and harmful-behaviour suites (AgentDojo,
+InjecAgent, AgentHarm). gpt-oss's own card reports SWE-bench Verified, τ-bench, Codeforces,
+and standard academic tests; Anthropic's Claude system cards report SWE-bench Verified,
+Terminal-Bench, τ-bench, and agentic-safety evaluations. Our plan **borrows these metrics**
+(resolve rate, `pass@k`/`pass^k`, tool-call validity, injection-resistance) but applies them
+to a small local repo suite rather than reproducing the full public harnesses — appropriate
+for a constrained, offline single-GPU system. Full provenance in Section 10.
+
 The field's agentic benchmarks and whether they are feasible here:
 
 | Benchmark | Measures | Feasible on a local 13k-context 20B? |
@@ -225,12 +239,79 @@ canary), and optional energy/latency logging.
 
 ---
 
-## 10. Primary sources to cite (verify ids/venues before submission)
+## 10. Sources & provenance
 
-SWE-bench — Jimenez et al. 2023 · SWE-agent — Yang et al. 2024 · τ-bench — Yao et al. 2024 ·
-BFCL/Gorilla — Patil et al. 2023–24 · Terminal-Bench — 2025 · AgentDojo — Debenedetti et al.
-2024 · InjecAgent — 2024 · AgentHarm — 2024 · GAIA — Mialon et al. 2023 · AgentBench — Liu
-et al. 2023 · WebArena — Zhou et al. 2023 · OSWorld — 2024 · CodeAct — Wang et al. 2024 ·
-HumanEval — Chen et al. 2021 · SelfCheckGPT — Manakul et al. 2023 · G-Eval — Liu et al. 2023
-· RAGAS — Es et al. 2023 · TrustLLM — Sun et al. 2024. (Full annotated list:
-`docs/project-construction-notes.md` §8.)
+Prefer the **primary** source (the paper that introduced the metric/benchmark); items
+marked *(secondary)* are leaderboards, blog posts, or model cards — cite them only for "how
+a system is evaluated," not for the method itself. **arXiv ids below are best-effort — verify
+every id, and record the official venue DOI + a stable URL (`https://arxiv.org/abs/<id>` is a
+stable URL; add the published DOI where one exists) before submitting** (per `AGENTS.md`).
+The metric each source grounds is in the last column.
+
+**Coding-agent benchmarks**
+
+| Benchmark | Primary source (authors, year, venue) | Ref (verify) | Grounds |
+|---|---|---|---|
+| SWE-bench | Jimenez, Yang, Wettig, Yao, Pei, Press, Narasimhan; 2023 (ICLR'24) | arXiv:2310.06770 | test-verified resolve rate |
+| SWE-bench Verified *(secondary)* | OpenAI, 2024 (blog) | openai.com/index/introducing-swe-bench-verified | resolve rate (validated subset) |
+| SWE-agent | Yang, Jimenez, Wettig, Lieret, Yao, Narasimhan, Press; 2024 (NeurIPS'24) | arXiv:2405.15793 | agent-computer interface / success |
+| Terminal-Bench *(secondary)* | Terminal-Bench Team, 2025 (leaderboard) | tbench.ai | agentic shell-task success |
+| CodeAct | Wang, Chen, Yuan, Zhang, Li, Peng, Ji; 2024 (ICML'24) | arXiv:2402.01030 | executable-code actions |
+| HumanEval | Chen et al.; 2021 | arXiv:2107.03374 | pass@k (code synthesis) |
+| MBPP | Austin et al.; 2021 | arXiv:2108.07732 | code synthesis |
+| LiveCodeBench | Jain et al.; 2024 *(confirm id)* | arXiv:2403.07974 | contamination-free coding |
+| BigCodeBench | Zhuo et al.; 2024 *(confirm id)* | arXiv:2406.15877 | practical library-use coding |
+| Aider polyglot *(secondary)* | Aider, leaderboard | aider.chat/docs/leaderboards | multi-language edit + edit-format |
+
+**Tool use / function calling**
+
+| Benchmark | Primary source | Ref (verify) | Grounds |
+|---|---|---|---|
+| Gorilla (APIs) | Patil, Zhang, Wang, Gonzalez; 2023 | arXiv:2305.15334 | API/tool-call correctness |
+| BFCL *(secondary)* | Berkeley/Gorilla team, 2024 (leaderboard) | gorilla.cs.berkeley.edu/leaderboard | tool-call validity/correctness, irrelevance |
+| τ-bench | Yao, Shinn, Razavi, Narasimhan (Sierra); 2024 *(confirm id)* | arXiv:2406.12045 | task success + **pass^k** reliability |
+| τ²-bench | Sierra; 2025 *(confirm id)* | (arXiv 2025 — confirm) | dual-control tool-agent tasks |
+| ToolLLM | Qin et al.; 2023 (ICLR'24) | arXiv:2307.16789 | tool use over many APIs |
+| API-Bank | Li et al.; 2023 *(confirm id)* | arXiv:2304.08244 | tool-augmented dialogue |
+
+**General agency**
+
+| Benchmark | Primary source | Ref (verify) | Grounds |
+|---|---|---|---|
+| GAIA | Mialon, Fourrier, Swift, Wolf, LeCun, Scialom; 2023 | arXiv:2311.12983 | general assistant success |
+| AgentBench | Liu et al.; 2023 (ICLR'24) | arXiv:2308.03688 | multi-environment agency |
+| WebArena | Zhou et al.; 2023 (ICLR'24) | arXiv:2307.13854 | web-navigation success |
+| Mind2Web | Deng et al.; 2023 (NeurIPS'23) | arXiv:2306.06070 | generalist web agent |
+| OSWorld | Xie et al.; 2024 *(confirm id)* | arXiv:2404.07972 | computer-use success |
+| MLE-bench | Chan et al. (OpenAI); 2024 *(confirm id)* | arXiv:2410.07095 | ML-engineering agency |
+| SWE-Lancer *(secondary)* | OpenAI; 2025 *(confirm id)* | arXiv:2502.12115 | economic ($) task value |
+
+**Safety / robustness**
+
+| Benchmark | Primary source | Ref (verify) | Grounds |
+|---|---|---|---|
+| AgentDojo | Debenedetti et al. (incl. Tramèr); 2024 (NeurIPS'24 D&B) *(confirm id)* | arXiv:2406.13352 | prompt-injection resistance |
+| InjecAgent | Zhan et al.; 2024 *(confirm id)* | arXiv:2403.02691 | indirect prompt injection |
+| AgentHarm | Andriushchenko et al.; 2024 *(confirm id)* | arXiv:2410.09024 | harmful-request refusal |
+
+**Faithfulness / trustworthiness evaluation**
+
+| Method | Primary source | Ref (verify) | Grounds |
+|---|---|---|---|
+| SelfCheckGPT | Manakul, Liusie, Gales; 2023 (EMNLP'23) | arXiv:2303.08896 | hallucination via self-consistency |
+| G-Eval | Liu, Iter, Xu, Wang, Xu, Zhu; 2023 (EMNLP'23) | arXiv:2303.16634 | LLM-as-judge scoring |
+| RAGAS | Es, James, Espinosa-Anke, Schockaert; 2023 (EACL'24 demo) | arXiv:2309.15217 | faithfulness/answer metrics |
+| TrustLLM | Sun et al.; 2024 (ICML'24) *(confirm id)* | arXiv:2401.05561 | trustworthiness taxonomy |
+
+**Metric origins & model cards** *(cite for definitions / "how they're evaluated")*
+
+| Item | Source | Ref (verify) |
+|---|---|---|
+| `pass@k` estimator | Chen et al.; 2021 (HumanEval) | arXiv:2107.03374 |
+| `pass^k` (reliability@k) | Yao et al.; 2024 (τ-bench) | arXiv:2406.12045 *(confirm)* |
+| gpt-oss evaluation | OpenAI gpt-oss model card; 2025 *(secondary)* | openai.com / HF `openai/gpt-oss-20b` |
+| Claude evaluation | Anthropic model/system cards; 2024–25 *(secondary)* | anthropic.com |
+| MMLU / MMLU-Pro / GPQA *(report-only)* | Hendrycks 2020 / Wang 2024 / Rein 2023 | arXiv:2009.03300 / 2406.01574 / 2311.12022 |
+
+Cross-reference: the annotated reading list in `docs/project-construction-notes.md` §8 has
+the "why it matters" notes for the agent-architecture and quantization literature.
