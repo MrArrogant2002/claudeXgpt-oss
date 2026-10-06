@@ -186,18 +186,43 @@ class Spike:
         evaluated = second.get("tokens_evaluated")
         if not isinstance(evaluated, int):
             evaluated = (second.get("timings") or {}).get("prompt_n")
-        if not isinstance(evaluated, int):
+
+        # The reported counter is not trustworthy on its own: some builds report
+        # the whole prompt as evaluated even when the KV cache was reused. Time
+        # it instead. A cold call on a fresh prefix versus a warm call on the
+        # same one is the measurement that actually decides CSCD's overhead.
+        cold_prefix = enc.encode(
+            filler + "Now describe a different thing entirely. ",
+            allowed_special="all",
+        )
+        try:
+            t0 = time.monotonic()
+            self.post({"prompt": cold_prefix, "n_predict": 1, "return_tokens": True,
+                       "temperature": 0, "cache_prompt": True})
+            cold_ms = (time.monotonic() - t0) * 1000
+            t0 = time.monotonic()
+            self.post({"prompt": cold_prefix, "n_predict": 1, "return_tokens": True,
+                       "temperature": 0, "cache_prompt": True})
+            warm_ms = (time.monotonic() - t0) * 1000
+        except Exception as e:
             return self.record("cache_prompt reuse", False, False,
-                               "server did not report tokens_evaluated")
-        reused = len(extended) - evaluated
-        # Partial reuse is the realistic outcome and is enough: CSCD only needs
-        # the shared prefix not to be recomputed on every phase.
-        ok = reused > len(base) // 2
+                               f"timing probe failed: {type(e).__name__}: {e}")
+
+        ok = warm_ms < cold_ms * 0.6
+        counter = (
+            f"{evaluated} of {len(extended)} reported evaluated"
+            if isinstance(evaluated, int) else "counter unavailable"
+        )
+        detail = (
+            f"cold {cold_ms:.0f} ms vs warm {warm_ms:.0f} ms on a "
+            f"{len(cold_prefix)}-token prefix ({counter})"
+        )
+        if not ok:
+            detail += " — no measurable reuse; CSCD pays a re-prefill per phase"
         return self.record(
-            "cache_prompt reuse", ok, False,
-            f"prefix {len(extended)} tokens, {evaluated} evaluated, {reused} reused"
-            + ("" if ok else " — CSCD pays a full re-prefill per phase"),
-            reused=reused, evaluated=evaluated, prefix=len(extended),
+            "cache_prompt reuse", ok, False, detail,
+            cold_ms=round(cold_ms, 1), warm_ms=round(warm_ms, 1),
+            reported_evaluated=evaluated, prefix=len(cold_prefix),
         )
 
     def check_seed(self, enc) -> bool:

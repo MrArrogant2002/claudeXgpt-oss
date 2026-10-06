@@ -325,9 +325,24 @@ object that is valid for a different tool. A per-recipient schema rejects it.
 CSCD is thus strictly more precise than whole-completion constraint, not merely
 cheaper.
 
-\textbf{Cost.} CSCD introduces additional server round trips per invocation. With
-prefix caching the recomputation is bounded by the tokens generated after the
-phase boundary. We report the measured overhead as \PH{F}~ms per call and
+\textbf{Feasibility.} The procedure requires the serving stack to honour a
+grammar and a JSON schema alongside a token-identifier prompt, which not every
+build does. We verified this on the deployment used for all experiments: both
+constraint forms are honoured, and a complete CSCD-I invocation executes in
+\PH{..} round trips. One implementation detail is worth recording because it
+silently defeats a naive integration: the server emits an end-of-generation
+token as soon as a constraint is satisfied, so a conformant response arrives
+with a trailing special token. Filtering must therefore be performed over token
+identifiers rather than over decoded text, which also preserves argument values
+that legitimately contain angle brackets. The verification script and its
+machine-readable report are released with the artifact.
+
+\textbf{Cost.} CSCD-I replaces one request per assistant step with up to three,
+of which the injected header requires none. The overhead therefore depends on
+how much of the shared prefix the server recomputes at each phase boundary,
+which is a property of the serving build rather than of the method. We measure
+wall-clock latency directly rather than relying on the server's reported
+evaluated-token counter, and report the overhead as \PH{F}~ms per invocation and
 \PH{G}\% per task.
 
 \section{Dispatch Surface and Containment}
@@ -383,9 +398,18 @@ does not rest on the decoding contribution alone.
 
 \textbf{Platform.} gpt-oss-20b in its native MXFP4 format, served by a single-slot
 local server on one \PH{GPU model, VRAM} with a \PH{ctx}-token context. Sampling
-is fixed and reported; the seed is logged per trial; dependencies are pinned by
-exact version, including the Harmony renderer, whose version determines the
-prompt bytes.
+is fixed and reported, and dependencies are pinned by exact version, including
+the Harmony renderer, whose version determines the prompt bytes.
+
+\textbf{Determinism.} Greedy decoding (temperature $0$, top-$k$ $1$) is bitwise
+reproducible on our deployment with a single server slot, so the numerical
+non-determinism reported for batched inference does not arise for our reference
+runs. Per-request seeding of \emph{sampled} decoding, however, is not honoured by
+this build. We therefore do not claim seed-controlled reproduction of sampled
+runs. Each configuration is reported as one reproducible greedy reference run
+together with reliability@$k$ over $k$ independent sampled runs, which requires
+independent draws rather than controlled seeds and is unaffected by the
+limitation.
 
 \textbf{Suites.} (i) A repository question-answering suite of \PH{Q} questions
 over \PH{R} open-source repositories, each answer annotated with the file and
@@ -469,8 +493,12 @@ what was observed; it does not verify that the answer follows from them. We
 therefore report it as grounding, not as correctness.
 
 \textbf{Internal.} Numerical non-determinism in batched inference is a known
-confound~\cite{nondeterminism2025}; we mitigate it with a single server slot, a
-logged seed, and reliability@$k$ rather than single-run reporting.
+confound~\cite{nondeterminism2025}. On our deployment greedy decoding is bitwise
+reproducible with a single server slot, so the confound does not arise for the
+reference runs; we verified this rather than assuming it. Per-request seeding of
+sampled decoding is not honoured by this build, so reliability@$k$ is computed
+from independent draws rather than controlled seeds, and an individual sampled
+run cannot be reproduced exactly.
 
 \textbf{External.} Results are obtained with one model on \PH{R} repositories in
 \PH{L} languages, and the dispatch-surface argument is formulated for a
