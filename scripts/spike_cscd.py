@@ -38,7 +38,27 @@ os.environ.setdefault("TIKTOKEN_RS_CACHE_DIR", str(REPO / "vendor" / "tiktoken")
 
 import requests  # noqa: E402
 
-RESET, BOLD = "\033[0m", "\033[1m"
+
+def strip_specials(enc, ids):
+    """Drop special tokens from a constrained generation.
+
+    llama.cpp appends an end-of-generation token once a grammar or JSON schema is
+    satisfied, so a perfectly conformant response still arrives as
+    `grep<|endoftext|>` or `{...}<|call|>`. Comparing or json.loads-ing the raw
+    decode reports a valid result as a failure.
+    """
+    out = []
+    for t in ids or []:
+        try:
+            if enc.is_special_token(t):
+                continue
+        except Exception:
+            pass
+        out.append(t)
+    return out
+
+
+RESET, BOLD ="\033[0m", "\033[1m"
 GREEN, RED, YELLOW = "\033[32m", "\033[31m", "\033[33m"
 
 
@@ -110,7 +130,7 @@ class Spike:
             })
         except Exception as e:
             return self.record("grammar honoured", False, False, f"{type(e).__name__}: {e}")
-        out = enc.decode(data.get("tokens") or []).strip()
+        out = enc.decode(strip_specials(enc, data.get("tokens"))).strip()
         ok = out in ("read", "grep", "glob")
         return self.record(
             "grammar honoured", ok, False,
@@ -137,7 +157,7 @@ class Spike:
         except Exception as e:
             return self.record("json_schema honoured", False, True,
                                f"{type(e).__name__}: {e}")
-        out = enc.decode(data.get("tokens") or []).strip()
+        out = enc.decode(strip_specials(enc, data.get("tokens"))).strip()
         try:
             obj = json.loads(out)
             ok = isinstance(obj, dict) and "path" in obj and set(obj) <= set(schema["properties"])
@@ -147,7 +167,13 @@ class Spike:
 
     def check_cache_prompt(self, enc) -> bool:
         print(f"{BOLD}4. cache_prompt across a phase hand-off{RESET}")
-        base = enc.encode("Explain what a tool registry does. ", allowed_special="all")
+        # A realistic prefix. A 30-token probe says nothing useful: llama.cpp has
+        # a minimum reuse threshold, and CSCD's hand-off happens after a full
+        # agent prompt (tools + history), which is thousands of tokens.
+        filler = ("A coding agent navigates a repository with tools rather than "
+                  "an index. It lists directories, globs for files, greps for "
+                  "symbols, and reads the lines that matter. ") * 40
+        base = enc.encode(filler + "Summarise that. ", allowed_special="all")
         try:
             first = self.post({"prompt": base, "n_predict": 24, "return_tokens": True,
                                "temperature": 0, "cache_prompt": True})
@@ -164,7 +190,9 @@ class Spike:
             return self.record("cache_prompt reuse", False, False,
                                "server did not report tokens_evaluated")
         reused = len(extended) - evaluated
-        ok = reused > 0
+        # Partial reuse is the realistic outcome and is enough: CSCD only needs
+        # the shared prefix not to be recomputed on every phase.
+        ok = reused > len(base) // 2
         return self.record(
             "cache_prompt reuse", ok, False,
             f"prefix {len(extended)} tokens, {evaluated} evaluated, {reused} reused"
@@ -175,21 +203,31 @@ class Spike:
     def check_seed(self, enc) -> bool:
         print(f"{BOLD}5. seed reproducibility{RESET}")
         ids = enc.encode("Write one sentence about caching.", allowed_special="all")
-        body = {"prompt": ids, "n_predict": 32, "return_tokens": True,
-                "temperature": 0.8, "seed": 12345}
-        try:
+        def twice(temperature: float, **extra: Any) -> bool:
+            body = {"prompt": ids, "n_predict": 32, "return_tokens": True,
+                    "temperature": temperature, "seed": 12345, **extra}
             a = self.post(dict(body))
             b = self.post(dict(body))
+            return (a.get("tokens") or []) == (b.get("tokens") or [])
+
+        try:
+            sampled = twice(0.8)
+            greedy = twice(0.0, top_k=1)
         except Exception as e:
             return self.record("seed reproducible", False, False,
                                f"{type(e).__name__}: {e}")
-        ok = (a.get("tokens") or []) == (b.get("tokens") or [])
-        return self.record(
-            "seed reproducible", ok, False,
-            "identical output across two calls" if ok
-            else "SAME SEED PRODUCED DIFFERENT OUTPUT — report reliability@k, "
-                 "and check the server runs a single slot (--parallel 1)",
-        )
+
+        # Greedy determinism is the one that matters: if even temperature 0 with
+        # top_k 1 varies, the cause is numerical (batch composition), not
+        # sampling, and no seed can fix it. Run the server with --parallel 1 and
+        # report reliability@k regardless.
+        detail = f"seeded sampling {'stable' if sampled else 'VARIES'}, "                  f"greedy {'stable' if greedy else 'VARIES'}"
+        if not greedy:
+            detail += " — numerical nondeterminism; use --parallel 1"
+        elif not sampled:
+            detail += " — seed is not honoured for sampled decoding"
+        return self.record("seed reproducible", sampled and greedy, False, detail,
+                           sampled_stable=sampled, greedy_stable=greedy)
 
     def check_end_to_end(self, enc) -> bool:
         print(f"{BOLD}6. end-to-end CSCD-I decode{RESET}")
@@ -230,7 +268,13 @@ class Spike:
             return self.record("CSCD-I end to end", False, True,
                                f"{type(e).__name__}: {e}")
         text = enc.decode(result.tokens)
-        ok = "to=functions." in text and text.count("to=") == 1
+        recipient = result.raw.get("recipient")
+        ok = (
+            recipient is not None
+            and not result.raw.get("cscd_fallback")
+            and text.count("to=") == 1
+            and f"to=functions.{recipient}" in text
+        )
         return self.record(
             "CSCD-I end to end", ok, True,
             f"{result.round_trips} round trips, {elapsed:.0f} ms, "

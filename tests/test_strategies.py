@@ -215,3 +215,57 @@ def test_phase_records_report_round_trips_and_constraint(enc, E, tools):
     assert [p.constrained for p in result.phases] == [False, True, True, True]
     assert result.round_trips == 4
     assert result.latency_ms >= 0
+
+
+# --- regression: trailing end-of-generation tokens --------------------------
+# Observed on the GPU box (llama.cpp, gpt-oss-20b, 2026-10-06): a constrained
+# generation stops as soon as the grammar or schema is satisfied, and the server
+# appends an end-of-generation token. Phase B therefore returns `read<|call|>`
+# and Phase C `{...}<|call|>`. Matching on the raw decode treated a perfectly
+# conformant response as a failure and sent the whole turn down the fallback path.
+
+def test_phase_b_tolerates_trailing_eog_token(enc, E, tools):
+    client = ReplayClient([
+        E("<|channel|>analysis<|message|>t<|end|>"
+          "<|start|>assistant<|channel|>commentary"),
+        E("read<|call|>"),
+        E('{"path":"a.py"}<|call|>'),
+    ])
+    result = build("cscd_i", enc).generate(
+        E("<|start|>assistant"), tools=tools, client=client, max_tokens=256
+    )
+    assert result.raw.get("cscd_fallback") is not True
+    assert result.raw.get("recipient") == "read"
+
+
+def test_assembled_call_has_exactly_one_terminator(enc, E, tools):
+    """The server's chosen terminator is dropped and the canonical <|call|>
+    emitted, so the completion is well-formed whichever token the build uses."""
+    client = ReplayClient([
+        E("<|channel|>analysis<|message|>t<|end|>"
+          "<|start|>assistant<|channel|>commentary"),
+        E("grep<|endoftext|>"),
+        E('{"pattern":"def run"}<|endoftext|>'),
+    ])
+    result = build("cscd_i", enc).generate(
+        E("<|start|>assistant"), tools=tools, client=client, max_tokens=256
+    )
+    text = decode(enc, result.tokens)
+    assert text.endswith('{"pattern":"def run"}<|call|>')
+    assert "<|endoftext|>" not in text
+    assert text.count("<|call|>") == 1
+
+
+def test_argument_body_keeps_legitimate_angle_brackets(enc, E, tools):
+    """Filtering happens at the token-id level, so a body that legitimately
+    contains angle brackets survives — a regex over decoded text would not."""
+    client = ReplayClient([
+        E("<|channel|>analysis<|message|>t<|end|>"
+          "<|start|>assistant<|channel|>commentary"),
+        E("grep"),
+        E('{"pattern":"List<int> items"}<|call|>'),
+    ])
+    result = build("cscd_i", enc).generate(
+        E("<|start|>assistant"), tools=tools, client=client, max_tokens=256
+    )
+    assert 'List<int> items' in decode(enc, result.tokens)

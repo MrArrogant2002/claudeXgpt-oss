@@ -51,6 +51,25 @@ class DecodingStrategy:
     def _recognizer(self) -> HarmonyRecognizer:
         return HarmonyRecognizer(enc=self.enc, specials=self.specials)
 
+    def _strip_specials(self, ids: Sequence[int]) -> list[int]:
+        """Drop special tokens from a constrained generation.
+
+        llama.cpp emits an end-of-generation token once a grammar or JSON schema
+        is satisfied, so a Phase B response arrives as `read<|call|>` and a
+        Phase C response as `{...}<|call|>`. Filtering at the token-id level
+        rather than by regex on decoded text avoids mangling a body that
+        legitimately contains angle brackets.
+        """
+        out: list[int] = []
+        for t in ids:
+            try:
+                if self.enc.is_special_token(t):
+                    continue
+            except Exception:
+                pass
+            out.append(t)
+        return out
+
     def _collect(
         self,
         client: CompletionClient,
@@ -260,7 +279,8 @@ class ChannelScopedStrategy(DecodingStrategy):
                 on_delta=None,
                 stop_on_commentary=False,
             )
-        produced = self.enc.decode(name_tokens) if name_tokens else ""
+        clean_name_tokens = self._strip_specials(name_tokens)
+        produced = self.enc.decode(clean_name_tokens) if clean_name_tokens else ""
         recipient = self._resolve(produced, by_name)
         phases.append(
             PhaseRecord(
@@ -323,12 +343,12 @@ class ChannelScopedStrategy(DecodingStrategy):
                         recipient=recipient)
         )
 
-        # Terminate the call ourselves if the constrained decode stopped as soon
-        # as the schema was satisfied (the usual case).
-        tokens = assembled + args_tokens
-        if not tokens or tokens[-1] != self.specials.call:
-            tokens = tokens + [self.specials.call]
-            injected += 1
+        # The constrained decode stops as soon as the schema is satisfied and
+        # llama.cpp appends an end-of-generation token. Drop whatever terminator
+        # it chose and emit the canonical <|call|> ourselves, so the assembled
+        # completion is well-formed regardless of which token the build uses.
+        tokens = assembled + self._strip_specials(args_tokens) + [self.specials.call]
+        injected += 1
 
         return DecodeResult(
             tokens=tokens,
