@@ -73,6 +73,7 @@ class Decoder:
                 "decode",
                 strategy=result.strategy,
                 round_trips=result.round_trips,
+                phases=result.phase_count,
                 latency_ms=result.latency_ms,
                 injected_tokens=result.injected_tokens,
                 fallback=bool(result.raw.get("cscd_fallback")),

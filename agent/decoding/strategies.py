@@ -335,7 +335,7 @@ class ChannelScopedStrategy(DecodingStrategy):
             injected = len(self._encode(" <|constrain|>json<|message|>"))
         phases.append(
             PhaseRecord("B'", len(header), constrained=True, latency_ms=0.0,
-                        recipient=recipient)
+                        recipient=recipient, request=False)
         )
 
         # --- Phase C: the argument body, under that one tool's schema -------

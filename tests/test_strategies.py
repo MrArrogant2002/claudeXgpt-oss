@@ -213,7 +213,11 @@ def test_phase_records_report_round_trips_and_constraint(enc, E, tools):
     )
     assert [p.phase for p in result.phases] == ["A", "B", "B'", "C"]
     assert [p.constrained for p in result.phases] == [False, True, True, True]
-    assert result.round_trips == 4
+    # Four phases, but only three server requests: the orchestrator emits B'
+    # itself. Counting it would overstate CSCD's cost by one request per call.
+    assert result.phase_count == 4
+    assert result.round_trips == 3
+    assert [p.request for p in result.phases] == [True, True, False, True]
     assert result.latency_ms >= 0
 
 

@@ -167,6 +167,10 @@ class PhaseRecord:
     constrained: bool
     latency_ms: float
     recipient: str | None = None
+    #: False for a phase the orchestrator emits itself. The injected header
+    #: costs no server round trip, so counting it would overstate CSCD's cost by
+    #: one request per tool call.
+    request: bool = True
 
 
 @dataclass
@@ -186,6 +190,12 @@ class DecodeResult:
 
     @property
     def round_trips(self) -> int:
+        """Server requests actually issued. Excludes orchestrator-emitted phases."""
+        return sum(1 for p in self.phases if p.request)
+
+    @property
+    def phase_count(self) -> int:
+        """All phases, including those the orchestrator emitted itself."""
         return len(self.phases)
 
     @property
