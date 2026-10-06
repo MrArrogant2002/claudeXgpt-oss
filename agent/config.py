@@ -44,6 +44,9 @@ TOP_P = float(os.environ.get("AGENT_TOP_P", "1.0"))
 TOP_K = int(os.environ.get("AGENT_TOP_K", "0"))  # 0 = disabled (no top-k cutoff)
 MIN_P = float(os.environ.get("AGENT_MIN_P", "0.0"))  # 0 = disabled
 REPEAT_PENALTY = float(os.environ.get("AGENT_REPEAT_PENALTY", "1.0"))  # 1.0 = none
+# Sampling seed. Unset = llama.cpp picks a random one and the run cannot be
+# reproduced. Set AGENT_SEED for any run whose numbers will be reported.
+SEED = int(os.environ["AGENT_SEED"]) if os.environ.get("AGENT_SEED") else None
 
 REQUEST_TIMEOUT = float(os.environ.get("AGENT_TIMEOUT", "600"))
 MAX_TURNS = int(os.environ.get("AGENT_MAX_TURNS", "25"))

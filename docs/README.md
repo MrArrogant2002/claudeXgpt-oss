@@ -26,15 +26,19 @@ and `-permission-model.svg`.
 | [CLI-design.md](design/CLI-design.md) | The Claude Code–style terminal UI spec |
 | [user-interface-design-plan.md](design/user-interface-design-plan.md) | The TUI design plan (streaming, input, theme) |
 
-## Research — [`research/`](research/)
+## Reference — [`research/`](research/)
 
 | Doc | What it covers |
 |-----|----------------|
-| [evaluation-and-trustworthiness.md](research/evaluation-and-trustworthiness.md) | **Primary paper focus** — trustworthiness/reliability evaluation of the agent |
-| [evaluation-plan.md](research/evaluation-plan.md) | The evaluation plan: metric catalog, what to compare against, context-size testing, agentic-benchmark landscape |
-| [gpt-oss-doc.md](research/gpt-oss-doc.md) | Running gpt-oss fully local + the Harmony response format |
-| [claude-internal-structure.md](research/claude-internal-structure.md) | Claude Code internals (memory, context, hooks, permissions) |
-| [literature-survey.xlsx](research/literature-survey.xlsx) | Reference survey (spreadsheet) |
+| [gpt-oss-doc.md](research/gpt-oss-doc.md) | Running gpt-oss fully local + the Harmony response format — **required reading for the constrained-decoding work** |
+
+> **Removed 2026-10-05.** The earlier research notes (`evaluation-plan.md`,
+> `evaluation-and-trustworthiness.md`, `claude-internal-structure.md`,
+> `literature-survey.xlsx`) encoded the abandoned ICDEC-2026 framing and are superseded by
+> the review and build plan below. They remain recoverable from git history at `b069b6e`.
+> Note that `design/build-plan.md` and `plans/write-tools-build-plan.md` still cite
+> `claude-internal-structure.md` as design provenance; those citations are kept as a record
+> of where the architecture came from, and now resolve only through git history.
 
 ## Build plans — [`plans/`](plans/)
 
@@ -43,7 +47,13 @@ and `-permission-model.svg`.
 | [bash-upgrade.md](plans/bash-upgrade.md) | Persistent same-shell bash, env-aware execution, unrestricted local mode |
 | [write-tools-build-plan.md](plans/write-tools-build-plan.md) | The permission-gated write tier (edit / write / multi_edit) |
 
-## Paper — [`../research-paper/`](../research-paper/)
+## Paper
 
-The ICDEC-2026 paper (Springer `sn-jnl` template): `main.tex` skeleton + `references.bib`.
-See [`../proj-conf.md`](../proj-conf.md) for the paper plan.
+| Doc | What it covers |
+|-----|----------------|
+| [review/2026-09-30-audit-and-research-review.md](review/2026-09-30-audit-and-research-review.md) | Independent audit of the tool layer and architecture, plus the fresh research assessment and ranked novelty options |
+| [plans/conference-paper-build-plan.md](plans/conference-paper-build-plan.md) | **The current plan** — contributions, methods, phased build, experiment design, bibliography, timeline |
+| [architecture/paper/](architecture/paper/) | Print-ready paper figures (system, channel-scoped constrained decoding, dispatch surface) + captions |
+
+The manuscript directory does not exist yet; the template choice is still open (see §12 of the
+build plan).

@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 388" width="720" height="388"
+     font-family="Helvetica, Arial, sans-serif">
+  <style>
+    .bx{fill:#fff;stroke:#111;stroke-width:1.2}
+    .bxu{fill:#e2e2e2;stroke:#111;stroke-width:1.2}
+    .bxoff{fill:#f6f6f6;stroke:#9a9a9a;stroke-width:1.1;stroke-dasharray:4 3}
+    .pf{fill:none;stroke:#555;stroke-width:1;stroke-dasharray:5 4}
+    .t{font-size:10.5px;fill:#111}
+    .toff{font-size:10.5px;fill:#8a8a8a}
+    .ttl{font-size:12px;fill:#111;font-weight:bold}
+    .sub{font-size:9.5px;fill:#444}
+    .an{font-size:9.5px;fill:#111}
+    .out{font-size:11px;fill:#111;font-weight:bold}
+    .hot{stroke:#111;stroke-width:3;fill:none;marker-end:url(#ah)}
+    .cold{stroke:#9a9a9a;stroke-width:1.2;fill:none;marker-end:url(#ac)}
+    .xl{stroke:#111;stroke-width:2.2}
+  </style>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#111"/></marker>
+    <marker id="ac" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9a9a9a"/></marker>
+  </defs>
+
+  <rect x="8" y="12" width="344" height="368" class="pf" rx="3"/>
+  <rect x="368" y="12" width="344" height="368" class="pf" rx="3"/>
+  <text x="180" y="30" class="ttl" text-anchor="middle">(a) repair-equipped agent</text>
+  <text x="540" y="30" class="ttl" text-anchor="middle">(b) CSCD + capability profile</text>
+
+  <rect x="60" y="40" width="240" height="30" class="bxu" rx="2"/>
+  <text x="180" y="53" class="t" text-anchor="middle">untrusted input</text>
+  <text x="180" y="65" class="sub" text-anchor="middle">repo files · command output · filenames</text>
+  <rect x="60" y="100" width="240" height="26" class="bx" rx="2"/>
+  <text x="180" y="117" class="t" text-anchor="middle">tool result appended to context</text>
+  <rect x="60" y="156" width="240" height="26" class="bx" rx="2"/>
+  <text x="180" y="173" class="t" text-anchor="middle">model restates it while reasoning</text>
+  <rect x="60" y="212" width="240" height="26" class="bx" rx="2"/>
+  <text x="180" y="229" class="t" text-anchor="middle">call derived from prose</text>
+  <rect x="60" y="268" width="240" height="26" class="bx" rx="2"/>
+  <text x="180" y="285" class="t" text-anchor="middle">bash runs it, ungated</text>
+  <rect x="60" y="324" width="240" height="26" class="bx" rx="2"/>
+  <text x="180" y="341" class="t" text-anchor="middle">filesystem · network</text>
+
+  <path d="M180,70 L180,98" class="hot"/>
+  <path d="M180,126 L180,154" class="hot"/>
+  <path d="M180,182 L180,210" class="hot"/>
+  <path d="M180,238 L180,266" class="hot"/>
+  <path d="M180,294 L180,322" class="hot"/>
+  <text x="180" y="366" class="out" text-anchor="middle">injected command executes</text>
+
+  <rect x="420" y="40" width="240" height="30" class="bxu" rx="2"/>
+  <text x="540" y="53" class="t" text-anchor="middle">untrusted input</text>
+  <text x="540" y="65" class="sub" text-anchor="middle">repo files · command output · filenames</text>
+  <rect x="420" y="100" width="240" height="26" class="bx" rx="2"/>
+  <text x="540" y="117" class="t" text-anchor="middle">tool result appended to context</text>
+  <rect x="420" y="156" width="240" height="26" class="bx" rx="2"/>
+  <text x="540" y="173" class="t" text-anchor="middle">model restates it while reasoning</text>
+  <rect x="420" y="212" width="240" height="26" class="bxoff" rx="2"/>
+  <text x="540" y="229" class="toff" text-anchor="middle">call derived from prose</text>
+  <rect x="420" y="268" width="240" height="26" class="bx" rx="2"/>
+  <text x="540" y="285" class="t" text-anchor="middle">bash runs it, permission-gated</text>
+  <rect x="420" y="324" width="240" height="26" class="bx" rx="2"/>
+  <text x="540" y="341" class="t" text-anchor="middle">filesystem · network</text>
+
+  <path d="M540,70 L540,98" class="cold"/>
+  <path d="M540,126 L540,154" class="cold"/>
+  <path d="M540,182 L540,188" class="cold"/>
+  <path d="M540,238 L540,266" class="cold"/>
+  <path d="M540,294 L540,300" class="cold"/>
+
+  <circle cx="540" cy="197" r="8.5" fill="#fff" stroke="#111" stroke-width="1.2"/>
+  <path d="M535.5,192.5 L544.5,201.5 M544.5,192.5 L535.5,201.5" class="xl"/>
+  <text x="556" y="200" class="an">calls are already structurally valid</text>
+
+  <circle cx="540" cy="309" r="8.5" fill="#fff" stroke="#111" stroke-width="1.2"/>
+  <path d="M535.5,304.5 L544.5,313.5 M544.5,304.5 L535.5,313.5" class="xl"/>
+  <text x="556" y="312" class="an">read-only outside root · no egress</text>
+
+  <text x="540" y="366" class="out" text-anchor="middle">blocked at two independent points</text>
+</svg>

@@ -1,8 +1,15 @@
 # Core agent dependencies (install on the machine that runs the model).
 #   pip install -r requirements.txt
-openai-harmony
-requests
+#
+# PINNED EXACTLY. openai-harmony is the prompt renderer: a version change alters
+# the prompt bytes and therefore the results, so an unpinned install silently
+# invalidates comparison across runs. Record these versions in the run manifest
+# (agent/trace.py writes them automatically).
+openai-harmony==0.0.8
+requests==2.34.2
 
 # Also required, but installed separately (system packages, not pip):
 #   - a gpt-oss GGUF + a recent llama.cpp build (llama-server)
-#   - ripgrep (`rg`) on PATH   -> used by the grep tool (falls back to pure-Python if missing)
+#   - ripgrep (`rg`) on PATH   -> the grep tool's preferred backend
+#   - bubblewrap (`bwrap`)     -> required only for the `enforced` containment
+#                                 profile (Linux; apt install bubblewrap)

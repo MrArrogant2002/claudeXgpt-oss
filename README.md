@@ -11,8 +11,8 @@ are for the **model machine**.
 
 > **Documentation:** design notes, research, and build plans live in [`docs/`](docs/)
 > — see [`docs/README.md`](docs/README.md) for the index; architecture diagrams are in
-> [`docs/architecture/`](docs/architecture/). The paper lives in
-> [`research-paper/`](research-paper/).
+> [`docs/architecture/`](docs/architecture/). The research plan lives in
+> [`docs/plans/conference-paper-build-plan.md`](docs/plans/conference-paper-build-plan.md).
 
 ---
 
