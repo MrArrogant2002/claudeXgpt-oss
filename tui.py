@@ -57,6 +57,24 @@ def main():
         help="enable the write tools (edit/write/multi_edit); off by default",
     )
     ap.add_argument(
+        "--decoding",
+        default="unconstrained",
+        choices=["unconstrained", "global_schema", "cscd_i", "cscd_g"],
+        help="decoding arm (default: unconstrained, the baseline)",
+    )
+    ap.add_argument(
+        "--seed", type=int, default=None,
+        help="sampling seed; required for any run whose numbers will be reported",
+    )
+    ap.add_argument(
+        "--greedy", action="store_true",
+        help="temperature 0, top_k 1 — the reproducible arm",
+    )
+    ap.add_argument(
+        "--trace", default=None, metavar="PATH",
+        help="write a JSONL run trace (manifest + events) to PATH",
+    )
+    ap.add_argument(
         "--permission-mode",
         default=config.PERMISSION_MODE,
         choices=["plan", "default", "acceptEdits", "bypassPermissions", "dontAsk"],
@@ -68,6 +86,12 @@ def main():
         config.ALLOW_EXEC = True
     if args.allow_edit:
         config.ALLOW_EDIT = True
+    if args.seed is not None:
+        config.SEED = args.seed
+    if args.greedy:
+        config.TEMPERATURE, config.TOP_K = 0.0, 1
+        if config.SEED is None:
+            config.SEED = 0
 
     # preflight: is the local server reachable?
     try:
@@ -83,6 +107,27 @@ def main():
     sandbox = Sandbox(args.project)
     registry = default_registry()  # read-only funnel; bash/edit tools added per config
     n_ctx = inference.context_size() or config.CONTEXT_TOKENS
+
+    # Instrumentation and decoding arm. The manifest is written before the first
+    # turn so a trace always records the configuration that produced it.
+    from agent.settings import AgentSettings
+    from agent.trace import Trace
+
+    settings = AgentSettings.from_config(config).with_(
+        project_root=str(sandbox.root), decoding=args.decoding
+    )
+    trace = Trace(args.trace, counters=None) if args.trace else None
+    decoder = None
+    if trace is not None:
+        trace.manifest(settings)
+    if args.decoding != "unconstrained":
+        from agent import harmony_codec as hc
+        from agent.decoding import build_decoder
+
+        decoder = build_decoder(
+            settings, hc.encoding(),
+            counters=trace.counters if trace else None, trace=trace,
+        )
 
     # Write tier: in the interactive TUI, enabling edits defaults to ASKING per edit
     # (M5) instead of the headless-safe `plan`. App builds the engine with an
@@ -102,7 +147,11 @@ def main():
         quiet=args.quiet,
         streaming=not args.no_stream,
         permission_mode=permission_mode,
+        decoder=decoder,
+        trace=trace,
     ).run()
+    if trace is not None:
+        trace.close()
 
 
 if __name__ == "__main__":

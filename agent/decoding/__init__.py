@@ -11,6 +11,9 @@ owns the question of *where a grammar applies* during a completion:
 
 from .tokens import KNOWN_CHANNELS, SpecialTokens
 from .recognizer import Event, HarmonyRecognizer, Region
+from .client import DecodeResult, LlamaCppClient, PhaseRecord, ReplayClient
+from .decoder import Decoder, build_decoder
+from .strategies import DecodingStrategy, build
 
 __all__ = [
     "KNOWN_CHANNELS",
@@ -18,4 +21,12 @@ __all__ = [
     "Event",
     "HarmonyRecognizer",
     "Region",
+    "DecodeResult",
+    "PhaseRecord",
+    "LlamaCppClient",
+    "ReplayClient",
+    "Decoder",
+    "build_decoder",
+    "DecodingStrategy",
+    "build",
 ]

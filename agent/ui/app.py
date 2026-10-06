@@ -64,6 +64,8 @@ class App:
         stream=None,
         streaming=True,
         permission_mode=None,
+        decoder=None,
+        trace=None,
     ):
         self.sandbox = sandbox
         self.registry = registry
@@ -72,6 +74,8 @@ class App:
         self.show_reasoning = show_reasoning
         self.quiet = quiet
         self.streaming = streaming  # token-by-token output (P3)
+        self.decoder = decoder  # decoding arm; None = the unconstrained baseline
+        self.trace = trace
         self.history = []
         self.out = stream or sys.stdout
         self._events_q = None  # set per-turn; lets the permission prompter reach the queue
@@ -120,6 +124,8 @@ class App:
             parts.append(f"{GLYPH['warn']} {self._MODE_LABEL.get(self.permission_mode, self.permission_mode)}")
         else:
             parts.append("read-only")
+        if self.decoder is not None:
+            parts.append(f"decode:{self.decoder.name}")
         if config.ALLOW_EXEC:
             parts.append("exec:on")
         parts.append(f"ctx {render._hn(used)}/{render._hn(self.n_ctx)}")
@@ -357,6 +363,8 @@ class App:
                     on_delta=on_delta,
                     can_use_tool=self.can_use_tool,
                     max_turns=max_turns,
+                    decoder=self.decoder,
+                    trace=self.trace,
                 )
                 result["res"], result["hist"] = res, hist
             except Exception as e:  # never let the worker kill the REPL

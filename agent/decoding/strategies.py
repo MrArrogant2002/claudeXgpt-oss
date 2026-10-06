@@ -89,10 +89,19 @@ class DecodingStrategy:
         rec = recognizer if recognizer is not None else self._recognizer()
         out: list[int] = []
         halted = False
+        raw: dict[str, Any] = {}
         gen = client.stream(
             prefill, max_tokens=max_tokens, extra_body=extra_body, cancel=cancel
         )
-        for tok in gen:
+        # Driven by hand rather than with `for`, because the generator's RETURN
+        # value carries the server's final response dict, and the turn loop needs
+        # it to tell a natural stop from a truncation at n_predict.
+        while True:
+            try:
+                tok = next(gen)
+            except StopIteration as stop:
+                raw = stop.value or {}
+                break
             if cancel is not None and cancel.is_set():
                 break
             out.append(tok)
@@ -115,7 +124,7 @@ class DecodingStrategy:
                 close()
             except Exception:
                 pass
-        return out, halted
+        return out, halted, raw
 
     def generate(
         self,
@@ -146,7 +155,7 @@ class UnconstrainedStrategy(DecodingStrategy):
         on_delta: Callable[[str, str], None] | None = None,
     ) -> DecodeResult:
         with _Clock() as clock:
-            tokens, _ = self._collect(
+            tokens, _, raw = self._collect(
                 client,
                 prefill_ids,
                 max_tokens=max_tokens,
@@ -157,6 +166,7 @@ class UnconstrainedStrategy(DecodingStrategy):
             )
         return DecodeResult(
             tokens=tokens,
+            raw=raw,
             strategy=self.name,
             phases=[
                 PhaseRecord("full", len(tokens), constrained=False, latency_ms=clock.ms)
@@ -186,7 +196,7 @@ class GlobalSchemaStrategy(DecodingStrategy):
         tool_list = list(tools)
         extra = {"json_schema": union_schema(tool_list)} if tool_list else None
         with _Clock() as clock:
-            tokens, _ = self._collect(
+            tokens, _, raw = self._collect(
                 client,
                 prefill_ids,
                 max_tokens=max_tokens,
@@ -197,6 +207,7 @@ class GlobalSchemaStrategy(DecodingStrategy):
             )
         return DecodeResult(
             tokens=tokens,
+            raw=raw,
             strategy=self.name,
             phases=[
                 PhaseRecord("full", len(tokens), constrained=True, latency_ms=clock.ms)
@@ -244,7 +255,7 @@ class ChannelScopedStrategy(DecodingStrategy):
         # --- Phase A: unconstrained, halting at a commentary onset ----------
         rec = self._recognizer()
         with _Clock() as clock:
-            body, halted = self._collect(
+            body, halted, raw_a = self._collect(
                 client,
                 prefill,
                 max_tokens=max_tokens,
@@ -259,7 +270,8 @@ class ChannelScopedStrategy(DecodingStrategy):
         # No tool call began: this was a final answer (or the turn was cancelled).
         if not halted or not by_name:
             return DecodeResult(
-                tokens=body, strategy=self.name, phases=phases, injected_tokens=0
+                tokens=body, raw=raw_a, strategy=self.name, phases=phases,
+                injected_tokens=0,
             )
 
         # --- Phase B: the recipient, constrained to the registry ------------
@@ -270,7 +282,7 @@ class ChannelScopedStrategy(DecodingStrategy):
         )
         lead = self._encode(" to=functions.") if self.inject_header else []
         with _Clock() as clock:
-            name_tokens, _ = self._collect(
+            name_tokens, _, _raw_b = self._collect(
                 client,
                 prefill + body + lead,
                 max_tokens=_NAME_BUDGET,
@@ -298,7 +310,7 @@ class ChannelScopedStrategy(DecodingStrategy):
                 "falling back to unconstrained continuation", produced
             )
             with _Clock() as clock:
-                tail, _ = self._collect(
+                tail, _, raw_fb = self._collect(
                     client, prefill + body, max_tokens=max_tokens,
                     extra_body=None, cancel=cancel, on_delta=on_delta,
                     stop_on_commentary=False,
@@ -308,7 +320,7 @@ class ChannelScopedStrategy(DecodingStrategy):
             )
             return DecodeResult(
                 tokens=body + tail, strategy=self.name, phases=phases,
-                raw={"cscd_fallback": True},
+                raw={**raw_fb, "cscd_fallback": True},
             )
 
         # --- Phase B': the canonical header -------------------------------
@@ -329,7 +341,7 @@ class ChannelScopedStrategy(DecodingStrategy):
         # --- Phase C: the argument body, under that one tool's schema -------
         schema = schema_for_tool(by_name[recipient])
         with _Clock() as clock:
-            args_tokens, _ = self._collect(
+            args_tokens, _, raw_c = self._collect(
                 client,
                 prefill + assembled,
                 max_tokens=max_tokens,
@@ -355,7 +367,7 @@ class ChannelScopedStrategy(DecodingStrategy):
             strategy=self.name,
             phases=phases,
             injected_tokens=injected,
-            raw={"recipient": recipient},
+            raw={**raw_c, "recipient": recipient},
         )
 
     # --- helpers -----------------------------------------------------------

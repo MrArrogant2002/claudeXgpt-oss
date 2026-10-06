@@ -254,6 +254,8 @@ def run_turn(
     stream=False,
     on_delta=None,
     can_use_tool=None,
+    decoder=None,
+    trace=None,
 ):
     """Run one user turn to completion. Returns (Result, updated_history).
 
@@ -265,6 +267,10 @@ def run_turn(
     is called with live text deltas (the answer types out; reasoning shows live), and
     `cancel` aborts generation mid-stream. Falls back to non-streaming if the server
     doesn't support it.
+
+    `decoder` selects a decoding strategy (see agent/decoding). When None the
+    loop keeps its original single-request path, so the unconstrained baseline is
+    the code that was already here rather than a reimplementation of it.
     """
     max_turns = max_turns or config.MAX_TURNS
     instructions = instructions or DEFAULT_INSTRUCTIONS
@@ -316,7 +322,20 @@ def run_turn(
                         }
                     )
         try:
-            if stream:
+            if decoder is not None:
+                # A decoding strategy owns the request pattern: it may issue
+                # several round trips and assemble the completion itself. What
+                # comes back is the same (token list, final response dict) the
+                # single-request path returns, so everything below is unchanged.
+                decoded = decoder.decode(
+                    prefill_ids,
+                    tools=registry.all(),
+                    max_tokens=max_tokens,
+                    cancel=cancel,
+                    on_delta=on_delta if stream else None,
+                )
+                out_tokens, raw = decoded.tokens, decoded.raw
+            elif stream:
                 out_tokens, raw = _stream_completion(
                     prefill_ids, max_tokens, cancel, on_delta
                 )
@@ -371,6 +390,8 @@ def run_turn(
         if cancel is not None and cancel.is_set():
             return Result("cancelled", "", turn), history
 
+        if trace is not None:
+            trace.counters.turns += 1
         salvage_before = hc.salvage_count()
         try:
             msgs = hc.parse(out_tokens)
@@ -400,6 +421,12 @@ def run_turn(
             continue
         # gpt-oss sometimes emits a malformed tool-call header (e.g. a duplicated
         # recipient) that the strict parser rejects; hc.parse salvaged it here.
+        if trace is not None:
+            trace.parse_outcome(
+                strict_ok=hc.salvage_count() == salvage_before,
+                salvaged=hc.salvage_count() > salvage_before,
+                channels=[hc.msg_fields(m).get("channel") for m in msgs],
+            )
         if hc.salvage_count() > salvage_before and on_event:
             on_event(
                 {
@@ -433,6 +460,9 @@ def run_turn(
                 else:
                     result = _run_tool_call(registry, name, args, sandbox, can_use_tool, on_event)
                 result = context.budget(result)
+                if trace is not None:
+                    trace.tool_call(name=name, args=args if isinstance(args, dict) else {},
+                                    result=result, source="header")
                 history.append(hc.tool_result_message(recipient, result))
                 if on_event:
                     on_event(
@@ -471,6 +501,11 @@ def run_turn(
             result = context.budget(
                 _run_tool_call(registry, name, args, sandbox, can_use_tool, on_event)
             )
+            if trace is not None:
+                # `source="prose"` is the dispatch-surface measurement: this call
+                # was derived from the reasoning channel, not from a well-formed
+                # header. Nothing else recovers that distinction after the fact.
+                trace.tool_call(name=name, args=args, result=result, source="prose")
             history.append(hc.tool_result_message(recipient, result))
             if on_event:
                 on_event(

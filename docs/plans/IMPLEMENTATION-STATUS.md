@@ -1,7 +1,7 @@
 # Implementation status
 
 Tracks [`conference-paper-build-plan.md`](conference-paper-build-plan.md).
-Updated 2026-10-05. **45 tests pass, 1 skipped** (`.venv/Scripts/python -m pytest`).
+Updated 2026-10-06. **52 tests pass, 1 skipped** (`.venv/Scripts/python -m pytest`).
 
 ## The headline result from this session
 
@@ -14,10 +14,18 @@ probabilistic: given a replayed completion containing a duplicated recipient, an
 unregistered tool and non-JSON arguments, the assembled output contains exactly
 one well-formed recipient and none of the garbage.
 
-What is *not* yet confirmed is whether the local `llama-server` honours
-`grammar` / `json_schema` alongside a token-ID prompt. That is what
-`scripts/spike_cscd.py` establishes, and it must run on the GPU box before any
-measurement.
+**The spike has now run on the GPU box and CSCD-I is feasible there.** Both
+`grammar` and `json_schema` are honoured alongside a token-ID prompt, a full
+CSCD-I invocation resolves the correct recipient in 4 round trips (~269 ms), and
+prompt-cache reuse is real: a 1408-token prefix costs 111 ms cold and 11 ms warm.
+The server's `tokens_evaluated` counter reports no reuse regardless, so the
+overhead must be measured by wall clock, not by that counter.
+
+Two findings carried into the paper: the server emits an end-of-generation token
+once a constraint is satisfied (so filtering must be done over token ids, not
+decoded text), and **greedy decoding is bitwise reproducible while per-request
+seeding of sampled decoding is not honoured** — reliability@k therefore comes
+from independent draws, not controlled seeds.
 
 ## Built and tested
 
@@ -47,15 +55,21 @@ produced silently wrong paper numbers:
 
 ## Not yet done
 
-The components exist and are tested in isolation. **`loop.py` still runs the old
-path**, so nothing below is reachable from the TUI yet. This is the largest
-remaining chunk and it is wiring, not design.
+**CSCD is now wired through `loop.py` and reachable from the CLI:**
+
+```bash
+python tui.py --project <repo> --decoding cscd_i --greedy --trace runs/r1.jsonl
+```
+
+`--decoding {unconstrained,global_schema,cscd_i,cscd_g}` selects the arm,
+`--greedy` the reproducible sampling configuration, `--trace` the JSONL run
+record. `decoder=None` keeps the original single-request path, so the baseline
+arm is the pre-existing code rather than a reimplementation of it.
 
 | Phase | Remaining | Why it matters |
 |---|---|---|
 | 2 | Freeze grep semantics across backends; drop the analysis-as-answer fallback (`loop.py:191`); pairing-preserving compaction; developer-role nudges; `read` size guard and range-tracked freshness; narrow the sensitive-path prefixes | Each is a measurement confound; the grep one makes two machines two different experiments |
 | 3 | Turn state machine + `RecoveryPolicy` objects | Until this lands, an ablation arm is an `if`, not a configuration |
-| 4 | Wire `DecodingStrategy` into the turn loop | CSCD is unreachable from the agent |
 | 5 | Wire the ledger into `read`/`grep` and the final-answer prompt | Grounding is not yet measured |
 | 6 | Give `bash` a `check_permissions`; route execution through `wrap_argv` | **The permission bypass is still open.** `permissions.py:95` still returns allow for `bash` |
 | 7 | Repository-QA suite (~40 questions, line-level ground truth); issue-resolution subset; injection suite | The long pole — start it before the code is finished |
