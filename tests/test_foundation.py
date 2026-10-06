@@ -270,3 +270,30 @@ def test_enforcement_refuses_rather_than_degrading_silently(tmp_path, monkeypatc
     p = profile_for("enforced", tmp_path)
     with pytest.raises(ContainmentUnavailable):
         wrap_argv(["ls"], p)
+
+
+# --- regression: instrumentation gaps found in the first real run ----------
+
+def test_trace_summary_survives_an_abrupt_exit(tmp_path):
+    """A trace with no summary line reports every counter as zero, which reads
+    as a flawless run rather than an aborted one. Observed on the first real
+    RQ1 run, where nine tool calls were recorded as zero."""
+    path = tmp_path / "abrupt.jsonl"
+    t = Trace(path)
+    t.manifest(AgentSettings())
+    t.tool_call(name="read", args={"path": "a"}, result="x")
+    t.close()  # atexit registers this too, so an abrupt exit still lands here
+    records = read_trace(path)
+    assert records[-1]["kind"] == "summary"
+    assert records[-1]["counters"]["tool_calls"] == 1
+
+
+def test_unconstrained_arm_is_instrumented_like_every_other(enc):
+    """The baseline must emit decode events, or its round-trip and latency
+    columns come back empty and CSCD's cost cannot be compared to anything."""
+    from agent.decoding import build_decoder
+
+    dec = build_decoder(AgentSettings().with_(decoding="unconstrained"), enc,
+                        client=object())
+    assert dec is not None
+    assert dec.name == "unconstrained"

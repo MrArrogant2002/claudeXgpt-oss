@@ -17,6 +17,7 @@ a run.
 
 from __future__ import annotations
 
+import atexit
 import hashlib
 import json
 import logging
@@ -151,6 +152,10 @@ class Trace:
             except OSError:
                 log.warning("trace: cannot open %s; continuing untraced", self.path)
                 self._fh = None
+            # A trace whose summary line is missing reports every counter as
+            # zero, which looks like a clean run rather than an aborted one.
+            # Register a fallback so an abrupt exit still closes the file.
+            atexit.register(self.close)
 
     # --- lifecycle ---------------------------------------------------------
     def __enter__(self) -> "Trace":

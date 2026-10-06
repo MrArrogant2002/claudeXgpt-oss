@@ -90,15 +90,18 @@ def build_decoder(
     trace: Any = None,
     client: CompletionClient | None = None,
 ) -> Decoder | None:
-    """Construct the decoder for `settings.decoding`.
+    """Construct the decoder for `settings.decoding`, including `unconstrained`.
 
-    Returns None for the `unconstrained` arm so the loop keeps its original
-    single-request path: the baseline must be the code that was already there,
-    not a reimplementation of it that happens to agree.
+    The unconstrained arm is built too, rather than falling through to the
+    loop's original single-request path. That path emits no decode events, so a
+    baseline run produced no round-trip or latency figures and CSCD's cost could
+    not be compared against anything. `UnconstrainedStrategy` issues exactly one
+    unconstrained streamed request, which is what the original path did, and it
+    is instrumented identically.
+
+    Pass `decoder=None` to `run_turn` directly to get the untouched legacy path.
     """
     arm = getattr(settings, "decoding", "unconstrained")
-    if arm == "unconstrained" and client is None:
-        return None
     specials = SpecialTokens.from_encoding(enc)
     transport = client or LlamaCppClient(settings.sampling, counters=counters)
     return Decoder(

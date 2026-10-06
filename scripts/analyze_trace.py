@@ -56,12 +56,28 @@ def summarise_run(records: list[dict[str, Any]]) -> dict[str, Any]:
     for c in calls:
         sources[c.get("source", "header")] += 1
 
+    # A run killed before close() has no summary line, so its counters are
+    # absent. Derive them from the events instead of reporting zeros, which
+    # would read as a flawless run rather than a truncated one.
+    truncated = not summary
+    if truncated:
+        counters = {
+            "turns": len(parses),
+            "tool_calls": len(calls),
+            "strict_parse_failures": sum(1 for p in parses if not p.get("strict_ok")),
+            "salvage_invocations": sum(1 for p in parses if p.get("salvaged")),
+            "leaked_call_dispatches": sources.get("prose", 0),
+            "schema_violations": 0,
+            "invalid_json_arguments": 0,
+        }
+
     structural_failures = (
         counters.get("strict_parse_failures", 0)
         + counters.get("schema_violations", 0)
         + counters.get("invalid_json_arguments", 0)
     )
     return {
+        "truncated": truncated,
         "arm": settings.get("decoding", "unconstrained"),
         "seed": (settings.get("sampling") or {}).get("seed"),
         "greedy": (settings.get("sampling") or {}).get("temperature") == 0.0,
@@ -118,6 +134,7 @@ def aggregate(runs: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
             "fallbacks": sum(r["fallbacks"] for r in rs),
             "constrained_phases": sum(r["constrained_phases"] for r in rs),
             "unconstrained_phases": sum(r["unconstrained_phases"] for r in rs),
+            "truncated": any(r.get("truncated") for r in rs),
         }
     return out
 
@@ -169,6 +186,11 @@ def render(agg: dict[str, dict[str, Any]]) -> str:
                 f"  {'':16} ^ {a['prose_dispatches']} derived from the reasoning "
                 "channel: attacker-reachable"
             )
+
+    if any(a.get("truncated") for a in agg.values()):
+        lines.append("")
+        lines.append("NOTE: some runs have no summary line (killed before close). "
+                     "Counters for those were derived from events.")
 
     warn = [a for a in agg.values() if a["fallbacks"]]
     if warn:

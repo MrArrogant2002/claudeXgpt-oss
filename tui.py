@@ -120,7 +120,10 @@ def main():
     decoder = None
     if trace is not None:
         trace.manifest(settings)
-    if args.decoding != "unconstrained":
+    # Build a decoder whenever an arm is selected OR a trace is being written:
+    # the baseline must be instrumented the same way as every other arm, or its
+    # round-trip and latency columns come back empty and nothing is comparable.
+    if args.decoding != "unconstrained" or trace is not None:
         from agent import harmony_codec as hc
         from agent.decoding import build_decoder
 
