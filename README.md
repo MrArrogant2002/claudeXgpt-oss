@@ -9,10 +9,9 @@ grep → read), the way Claude Code does — no embeddings, no index.
 Built on one machine, run on another (the one with the model). Instructions below
 are for the **model machine**.
 
-> **Documentation:** design notes, research, and build plans live in [`docs/`](docs/)
-> — see [`docs/README.md`](docs/README.md) for the index; architecture diagrams are in
-> [`docs/architecture/`](docs/architecture/). The research plan lives in
-> [`docs/plans/conference-paper-build-plan.md`](docs/plans/conference-paper-build-plan.md).
+> **Documentation:** design notes and build plans live in [`docs/`](docs/) — see
+> [`docs/README.md`](docs/README.md) for the index. The Harmony protocol reference is
+> [`docs/harmony-reference.md`](docs/harmony-reference.md).
 
 ---
 
@@ -148,7 +147,16 @@ model's thinking.
 | `AGENT_EXEC_TIMEOUT` | `60` | default seconds before a `bash` command is killed |
 | `AGENT_EXEC_TIMEOUT_MAX` | `300` | hard cap the model's per-command `timeout` can't exceed |
 | `AGENT_BASH_PERSISTENT` | on | one persistent shell (env/cd/venv persist); `0` = fresh shell per call |
-| `AGENT_BASH_RESTRICTED` | off | `1` re-enables the destructive-command deny-list (for a networked/untrusted mode) |
+| `AGENT_BASH_RESTRICTED` | off | `1` refuses commands matching the destructive-pattern deny-list (a guard-rail, not a boundary) |
+| `AGENT_CONTAINMENT` | `auto` | `auto` uses bubblewrap when available · `off` disables it · `require` refuses `bash` without it |
+| `AGENT_BASH_MAX_OUTPUT` | `20000` | chars of command output kept (tail-biased) |
+| `AGENT_BASH_MEMORY_MB` | `4096` | address-space limit per command (`0` = unlimited) |
+| `AGENT_BASH_MAX_FILE_MB` | `512` | largest file a command may create (`0` = unlimited) |
+| `AGENT_BASH_MAX_PROCS` | `512` | process/thread limit per command (`0` = unlimited) |
+| `AGENT_BASH_CPU_SECONDS` | `0` | CPU-time limit per command (`0` = rely on the timeout) |
+| `AGENT_BASH_ENV_DENY` | cloud/API tokens | comma-separated env vars never passed to a command |
+| `AGENT_READ_MAX_BYTES` | `8000000` | largest file `read` will open |
+| `AGENT_SEED` | unset | sampling seed; set it for reproducible runs |
 | `AGENT_ALLOW_EDIT` | off | `1`/`true` enables the write tools without `--allow-edit` |
 | `AGENT_PERMISSION_MODE` | `plan` | default write-tier permission mode (see `--permission-mode`) |
 | `AGENT_EDIT_MAX_BYTES` | `2000000` | refuse writes larger than this |
@@ -193,15 +201,39 @@ persist across calls; **each command starts at the project root** (a `cd` lasts 
 that command, matching the file tools) so the shell can't drift out of the project. The
 model runs a command, reads the stderr, installs what's missing into the venv, and retries.
 
-⚠ **This runs arbitrary shell commands with your user's privileges, with no container.**
-For fully-local / air-gapped use the shell is **unrestricted by design** (installs,
-deletes, arbitrary commands) — the offline environment *is* the boundary. A
-destructive-command deny-list (`rm -rf /`, `sudo`, fork bombs, raw-disk writes…) is kept
-in the code and re-enabled with **`AGENT_BASH_RESTRICTED=1`** — the switch a future
-networked or untrusted deployment turns on. Every command is echoed and has a hard
-timeout (`AGENT_EXEC_TIMEOUT`, capped by `AGENT_EXEC_TIMEOUT_MAX`). The path sandbox and
-the write-tier permission engine remain the real trust boundary; still prefer a container
-for code you don't trust. Set `AGENT_BASH_PERSISTENT=0` for a fresh shell per command.
+#### What constrains a command
+
+Every command runs through the same gates, in this order:
+
+1. **Permission engine.** `bash` is managed exactly like the write tools. `plan` mode
+   refuses outright; `default` and `acceptEdits` ask you first; only
+   `bypassPermissions` / `dontAsk` run without asking. Approving one command approves
+   *that command*, not every later one — the decision is keyed on the command text.
+2. **Containment** (Linux with `bubblewrap`). The project root is read-write, the
+   system is read-only, and the network namespace is unshared — so a command cannot
+   reach the network even if it tries. `AGENT_CONTAINMENT=auto` (default) uses it when
+   available, `off` disables it, `require` refuses to run `bash` without it. On Windows
+   and macOS containment is unavailable and the agent says so rather than implying it.
+3. **Resource limits** (POSIX). Address space, file size, process count and optionally
+   CPU time, applied with `setrlimit` in the child and inherited by anything it spawns.
+   A fork bomb or an unbounded allocation hits a wall instead of the machine.
+4. **Timeout and output cap.** A hard per-command timeout
+   (`AGENT_EXEC_TIMEOUT`, capped by `AGENT_EXEC_TIMEOUT_MAX`) and a cap on how much
+   output is kept (`AGENT_BASH_MAX_OUTPUT`, tail-biased because errors come last).
+5. **Environment scrubbing.** Credential-bearing variables (cloud keys, API tokens,
+   `SSH_AUTH_SOCK`) are removed before the shell starts.
+6. **Working directory.** Each command starts at the project root, so a `cd` cannot
+   make the shell drift out of the project between calls.
+
+`AGENT_BASH_RESTRICTED=1` additionally refuses commands matching a destructive-pattern
+deny-list (`rm -rf /`, `sudo`, fork bombs, raw-disk writes…). Treat it as a guard-rail
+against accidents, not a security boundary: string matching cannot constrain arbitrary
+execution, and the containment layer is what actually holds.
+
+⚠ Without `bubblewrap` — on Windows, macOS, or a Linux box without it — a command still
+runs with your user's privileges and can read outside the project root. Prefer a
+container for code you do not trust. `AGENT_BASH_PERSISTENT=0` gives a fresh shell per
+command; `Ctrl-C` interrupts a running command rather than waiting for its timeout.
 
 ### Changing code — the write tier (`--allow-edit`)
 

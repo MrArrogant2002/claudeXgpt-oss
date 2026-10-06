@@ -22,6 +22,10 @@ _IGNORE_DIRS = {
 }
 
 
+#: Hard ceiling on paths examined, so a pathological pattern cannot hang a turn.
+_MAX_SCAN = 200_000
+
+
 def _ignored(rel_parts):
     return any(part in _IGNORE_DIRS for part in rel_parts)
 
@@ -48,8 +52,15 @@ def _glob(args, sandbox):
         return f"ERROR: bad glob pattern {pattern!r}: {e}"
 
     hits = []
+    scanned = 0
     for p in it:
         try:
+            # Bound the walk. pathlib.glob descends into .venv and node_modules
+            # before anything filters them, so `**/*` on a repo with vendored
+            # dependencies walked tens of thousands of paths to return 200.
+            scanned += 1
+            if scanned > _MAX_SCAN:
+                break
             if not p.is_file():
                 continue
             rel = sandbox.relativize(p)

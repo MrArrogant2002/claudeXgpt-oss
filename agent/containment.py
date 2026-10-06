@@ -1,27 +1,22 @@
-"""Capability profiles — enforcement below the agent process (build plan, Phase 6).
+"""Process containment for the `bash` tool.
 
-The permission engine is *policy*: it decides whether a mutating tool call is
-allowed. It has never been *enforcement*, and it never covered the execution
-tier at all — a tool with no `check_permissions` resolves to allow before any
-rule is consulted, and `bash` is such a tool. With execution enabled, every
-property the engine documents (secret paths denied in every mode, no write
-outside the project root) can be sidestepped by running a command.
+The path sandbox confines the file tools. It does nothing for the shell: a
+command runs with the user's privileges and can read or write anywhere the user
+can. This module narrows that where the platform allows it.
 
-This module closes that by compiling a permission mode into a capability profile
-and enforcing it with unprivileged user namespaces via `bubblewrap`:
+Two layers, applied together:
 
-* read-only bind mounts outside the project root,
-* read-write only within it,
-* `--unshare-net`, which is what turns "air-gapped" from a claim about the
-  deployment environment into a property of the process,
-* termination with the parent.
+* **Resource limits** (POSIX, always on) — CPU time, address space, file size,
+  and process count, applied with `setrlimit` in the child. These stop a runaway
+  build, a fork bomb, or a test that allocates without bound from taking the
+  machine down. Portable enough to be the baseline.
+* **Filesystem and network containment** (Linux with `bubblewrap`) — the project
+  root read-write, everything else read-only, and no network. This is what turns
+  "the agent only touches your project" from a convention into a property.
 
-`bubblewrap` rather than hand-rolled `unshare`/`seccomp`: it is packaged, needs
-no root, and is small enough to show in a figure. A hand-rolled equivalent is
-weeks of work and invites subtle, unreviewable errors.
-
-The `none` profile reproduces today's unconfined behaviour. It is retained
-deliberately: it is the control arm of the security experiment, not dead code.
+`bubblewrap` rather than hand-rolled namespaces: it is packaged, needs no root,
+and is small enough to audit. On Windows and macOS only the resource limits and
+the output/time caps apply, which is stated plainly rather than implied.
 """
 
 from __future__ import annotations
@@ -30,171 +25,146 @@ import logging
 import os
 import shutil
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, Sequence
+from typing import Sequence
+
+from . import config
 
 log = logging.getLogger(__name__)
 
-ProfileName = Literal["none", "denylist", "enforced"]
-
 
 class ContainmentUnavailable(RuntimeError):
-    """The requested profile cannot be enforced on this platform or build.
-
-    Raised rather than silently degrading: an experiment arm labelled "enforced"
-    that quietly ran unconfined would invalidate the security results.
-    """
-
-
-@dataclass(frozen=True)
-class CapabilityProfile:
-    """What a tool invocation is permitted to touch."""
-
-    name: ProfileName
-    project_root: Path
-    writable: tuple[Path, ...] = ()
-    readable: tuple[Path, ...] = ()
-    network: bool = True
-    enforced: bool = False
-    #: Paths that must be unreachable even for reading. Used by the injection
-    #: suite's canary, and by secret material the permission engine already
-    #: denies writes to but has never denied reads of.
-    blocked: tuple[Path, ...] = ()
-
-    @property
-    def description(self) -> str:
-        bits = [
-            f"write={'ro' if not self.writable else ','.join(str(p) for p in self.writable)}",
-            f"net={'on' if self.network else 'off'}",
-            f"enforced={'yes' if self.enforced else 'no'}",
-        ]
-        return " ".join(bits)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "name": self.name,
-            "project_root": str(self.project_root),
-            "writable": [str(p) for p in self.writable],
-            "readable": [str(p) for p in self.readable],
-            "network": self.network,
-            "enforced": self.enforced,
-            "blocked": [str(p) for p in self.blocked],
-        }
-
-
-def profile_for(
-    name: ProfileName,
-    project_root: str | os.PathLike[str],
-    *,
-    blocked: Sequence[str | os.PathLike[str]] = (),
-) -> CapabilityProfile:
-    """Compile a profile name into a capability profile."""
-    root = Path(project_root).resolve()
-    blocked_paths = tuple(Path(b).resolve() for b in blocked)
-
-    if name == "none":
-        return CapabilityProfile(
-            name="none", project_root=root, writable=(root,), network=True,
-            enforced=False, blocked=blocked_paths,
-        )
-    if name == "denylist":
-        # Pattern-matching on command text. Kept as an experimental arm because
-        # it is what the agent shipped with, and because the paper should show
-        # what it is worth — string matching cannot constrain arbitrary execution.
-        return CapabilityProfile(
-            name="denylist", project_root=root, writable=(root,), network=True,
-            enforced=False, blocked=blocked_paths,
-        )
-    if name == "enforced":
-        return CapabilityProfile(
-            name="enforced", project_root=root, writable=(root,),
-            readable=(Path("/usr"), Path("/bin"), Path("/lib"), Path("/lib64"),
-                      Path("/etc"), Path("/opt")),
-            network=False, enforced=True, blocked=blocked_paths,
-        )
-    raise ValueError(f"unknown containment profile {name!r}")
+    """`AGENT_CONTAINMENT=require` was set but containment cannot be applied."""
 
 
 def bwrap_path() -> str | None:
     return shutil.which("bwrap")
 
 
-def available(profile: CapabilityProfile) -> tuple[bool, str]:
-    """Whether `profile` can actually be enforced here. Returns (ok, reason)."""
-    if not profile.enforced:
-        return True, "profile requires no enforcement"
+def available() -> tuple[bool, str]:
+    """Whether filesystem/network containment can be applied here."""
     if sys.platform != "linux":
-        return False, f"user namespaces are Linux-only (platform={sys.platform})"
+        return False, f"bubblewrap needs Linux (platform is {sys.platform})"
     if bwrap_path() is None:
-        return False, "bubblewrap (bwrap) not found on PATH — apt install bubblewrap"
+        return False, "bubblewrap not found on PATH (apt install bubblewrap)"
     try:
         with open("/proc/sys/kernel/unprivileged_userns_clone") as fh:
             if fh.read().strip() == "0":
                 return False, "unprivileged user namespaces are disabled by sysctl"
     except OSError:
-        pass  # absent on many kernels; absence is not a failure
+        pass  # absent on most kernels; absence is not a failure
     return True, "bubblewrap available"
 
 
-def wrap_argv(argv: Sequence[str], profile: CapabilityProfile) -> list[str]:
-    """Return `argv` wrapped so it executes under `profile`.
+@dataclass(frozen=True)
+class Containment:
+    """What is actually in force for this session."""
 
-    An unenforced profile returns the command unchanged. An enforced profile on a
-    platform that cannot enforce it raises rather than running unconfined.
+    confined: bool
+    reason: str
+    rlimits: bool
+
+    @property
+    def summary(self) -> str:
+        parts = ["rlimits" if self.rlimits else "no-rlimits"]
+        parts.append("confined" if self.confined else "unconfined")
+        return " · ".join(parts)
+
+
+def status() -> Containment:
+    """Resolve the configured mode against what this platform can do."""
+    mode = (config.CONTAINMENT or "auto").lower()
+    ok, reason = available()
+    rlimits = os.name == "posix"
+    if mode == "off":
+        return Containment(False, "disabled by AGENT_CONTAINMENT=off", rlimits)
+    if mode == "require" and not ok:
+        raise ContainmentUnavailable(
+            f"AGENT_CONTAINMENT=require but containment is unavailable: {reason}"
+        )
+    return Containment(ok, reason, rlimits)
+
+
+def wrap(argv: Sequence[str], root: str | os.PathLike[str]) -> list[str]:
+    """Wrap a command so it runs confined, or return it unchanged.
+
+    Read-write inside `root`, read-only for the system paths a build needs, no
+    network, and the child dies with the agent. Anything not bound is simply not
+    present in the child's filesystem view.
     """
-    if not profile.enforced:
+    state = status()
+    if not state.confined:
         return list(argv)
 
-    ok, reason = available(profile)
-    if not ok:
-        raise ContainmentUnavailable(
-            f"containment profile {profile.name!r} cannot be enforced: {reason}"
-        )
-
-    cmd: list[str] = [bwrap_path() or "bwrap", "--die-with-parent", "--unshare-pid"]
-
-    if not profile.network:
-        cmd.append("--unshare-net")
-
-    for path in profile.readable:
-        if path.exists():
-            cmd += ["--ro-bind", str(path), str(path)]
-
-    cmd += ["--bind", str(profile.project_root), str(profile.project_root)]
-    for path in profile.writable:
-        if path != profile.project_root and path.exists():
-            cmd += ["--bind", str(path), str(path)]
-
-    cmd += ["--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp"]
-
-    # Hide blocked paths outright rather than relying on a read-only mount: the
-    # injection suite's canary must be *absent*, not merely unwritable.
-    for path in profile.blocked:
-        cmd += ["--tmpfs", str(path)] if path.is_dir() else ["--bind-try", "/dev/null", str(path)]
-
-    cmd += ["--chdir", str(profile.project_root), "--"]
+    root = Path(root).resolve()
+    cmd: list[str] = [
+        bwrap_path() or "bwrap",
+        "--die-with-parent",
+        "--unshare-pid",
+        "--unshare-net",       # the local-only guarantee, enforced
+        "--unshare-uts",
+        "--unshare-ipc",
+        "--new-session",       # no terminal to hijack
+        "--proc", "/proc",
+        "--dev", "/dev",
+        "--tmpfs", "/tmp",
+    ]
+    for path in ("/usr", "/bin", "/sbin", "/lib", "/lib64", "/etc", "/opt"):
+        if Path(path).exists():
+            cmd += ["--ro-bind", path, path]
+    cmd += ["--bind", str(root), str(root), "--chdir", str(root), "--"]
     return cmd + list(argv)
 
 
-@dataclass
-class ContainmentReport:
-    """What actually happened, for the run manifest and the security tables."""
+def rlimit_preexec():
+    """A `preexec_fn` applying resource limits, or None where unsupported.
 
-    profile: str
-    enforced: bool
-    reason: str
-    blocks: int = 0
-    details: list[str] = field(default_factory=list)
+    Returned as a closure so the limits are read once at call time and the child
+    does nothing but `setrlimit` between fork and exec.
+    """
+    if os.name != "posix":
+        return None
+    try:
+        import resource
+    except ImportError:  # pragma: no cover - POSIX only
+        return None
 
-    def to_dict(self) -> dict[str, Any]:
-        return dict(self.__dict__)
+    limits: list[tuple[int, int]] = []
+    if config.BASH_CPU_SECONDS > 0:
+        limits.append((resource.RLIMIT_CPU, config.BASH_CPU_SECONDS))
+    if config.BASH_MEMORY_MB > 0:
+        limits.append((resource.RLIMIT_AS, config.BASH_MEMORY_MB * 1024 * 1024))
+    if config.BASH_MAX_FILE_MB > 0:
+        limits.append((resource.RLIMIT_FSIZE, config.BASH_MAX_FILE_MB * 1024 * 1024))
+    if config.BASH_MAX_PROCS > 0:
+        limits.append((resource.RLIMIT_NPROC, config.BASH_MAX_PROCS))
+    limits.append((resource.RLIMIT_CORE, 0))  # no core dumps
+
+    def _apply() -> None:  # pragma: no cover - runs in the forked child
+        for which, value in limits:
+            try:
+                soft, hard = resource.getrlimit(which)
+                ceiling = value if hard == resource.RLIM_INFINITY else min(value, hard)
+                resource.setrlimit(which, (ceiling, hard))
+            except (ValueError, OSError):
+                pass  # a limit we cannot set is not a reason to fail the command
+
+    return _apply
 
 
-def describe(profile: CapabilityProfile) -> ContainmentReport:
-    ok, reason = available(profile)
-    return ContainmentReport(
-        profile=profile.name,
-        enforced=profile.enforced and ok,
-        reason=reason,
-    )
+def scrubbed_env(base: dict[str, str] | None = None) -> dict[str, str]:
+    """A copy of the environment with credential-bearing variables removed.
+
+    The agent reads repository files on the user's behalf; it should not also
+    hand an arbitrary command whatever tokens happen to be exported in the
+    parent shell.
+    """
+    env = dict(base if base is not None else os.environ)
+    for name in config.BASH_ENV_DENY:
+        env.pop(name, None)
+    env.setdefault("PYTHONIOENCODING", "utf-8")
+    env.setdefault("PIP_NO_INPUT", "1")
+    env.setdefault("DEBIAN_FRONTEND", "noninteractive")
+    env.setdefault("GIT_TERMINAL_PROMPT", "0")
+    return env

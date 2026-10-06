@@ -24,6 +24,8 @@ import time
 import uuid
 from pathlib import Path
 
+from .. import config, containment
+
 _ACTIVATE_CANDIDATES = (
     (".venv", "bin", "activate"),       # POSIX venv
     (".venv", "Scripts", "activate"),   # Windows / MINGW venv
@@ -61,13 +63,16 @@ class ShellSession:
         # stdout is a pipe (mainly a safeguard on Linux; git-bash flushes without it).
         stdbuf = shutil.which("stdbuf")
         argv = [stdbuf, "-oL", "-eL", bash] if stdbuf else [bash]
-        env = dict(os.environ)
-        env.setdefault("PYTHONIOENCODING", "utf-8")
-        env.setdefault("PIP_NO_INPUT", "1")          # pip never prompts
-        env.setdefault("DEBIAN_FRONTEND", "noninteractive")
+        # Confine the whole session rather than each command: the shell is
+        # long-lived, so anything it spawns inherits the same view.
+        argv = containment.wrap(argv, self._cwd)
+        env = containment.scrubbed_env()
         kwargs: dict[str, object] = {}
         if os.name == "posix":
             kwargs["start_new_session"] = True       # own process group -> killpg works
+            preexec = containment.rlimit_preexec()
+            if preexec is not None:
+                kwargs["preexec_fn"] = preexec       # rlimits inherited by children
 
         self._proc = subprocess.Popen(  # noqa: S603 - intentional shell for the agent
             argv,
@@ -113,6 +118,25 @@ class ShellSession:
 
     def alive(self) -> bool:
         return self._proc is not None and self._proc.poll() is None
+
+    def interrupt(self) -> bool:
+        """Stop whatever is running now. Returns True if a process was signalled.
+
+        Without this, Ctrl-C during a long build left the REPL apparently frozen
+        until the command's own timeout expired: cancellation was only checked at
+        loop step boundaries, and the worker was blocked inside run().
+        """
+        proc = self._proc
+        if proc is None or proc.poll() is not None:
+            return False
+        try:
+            if os.name == "posix":
+                os.killpg(os.getpgid(proc.pid), signal.SIGINT)
+            else:
+                proc.terminate()
+            return True
+        except (ProcessLookupError, OSError):
+            return False
 
     def close(self) -> None:
         proc = self._proc

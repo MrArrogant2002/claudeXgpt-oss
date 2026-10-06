@@ -8,7 +8,8 @@ Resolution order, first decision wins:
   2. configured deny rule / session-deny            (deny always wins)
   3. tool.check_permissions(args, sandbox) == deny   (e.g. path escapes the sandbox)
   4. allow rule / session-allow                       -> allow
-  5. mode policy: bypassPermissions|dontAsk->allow · plan->deny · acceptEdits->allow · default->ask
+  5. mode policy: bypassPermissions|dontAsk->allow · plan->deny ·
+     acceptEdits->allow for file edits, ask for commands · default->ask
   6. "ask": call the interactive prompter if present, else DENY (fail-closed)
 
 Pure local logic — no network. The Sandbox is still the hard wall underneath; this is
@@ -28,7 +29,11 @@ _SENSITIVE_SEGMENTS = {
 }
 _SENSITIVE_NAMES = {".env"}
 _SENSITIVE_SUFFIXES = (".pem", ".key", ".pfx", ".p12")
-_SENSITIVE_PREFIXES = ("id_rsa", "id_ed25519", ".env", "secret", "credentials")
+# Names that are secret material, not names that merely sound like it. The
+# earlier list matched any file beginning "secret" or "credentials", so
+# ordinary source such as secrets.py or credentials_test.go could never be
+# edited in any mode. Those are ordinary files and get the usual prompt.
+_SENSITIVE_PREFIXES = ("id_rsa", "id_ecdsa", "id_ed25519", ".env", ".npmrc", ".netrc")
 
 _RULE_RE = re.compile(r"^\s*(\w+)\s*(?:\((.*)\))?\s*$")
 
@@ -95,8 +100,16 @@ class PermissionEngine:
         if getattr(tool, "check_permissions", None) is None:
             return Decision(ALLOW)
 
-        rel = _rel_posix(args.get("path", ""), sandbox)
-        spec = f"{tool.name}:{rel if rel is not None else args.get('path', '')}"
+        # The decision key. For a path tool it is the sandbox-relative path; for
+        # a command tool it is the exact command. Keying bash on a path would
+        # make one "allow for this session" apply to every command the agent
+        # ever runs, which is not what the user agreed to.
+        if "command" in args and "path" not in args:
+            rel = None
+            spec = f"{tool.name}:{(args.get('command') or '').strip()}"
+        else:
+            rel = _rel_posix(args.get("path", ""), sandbox)
+            spec = f"{tool.name}:{rel if rel is not None else args.get('path', '')}"
 
         # 1. always-deny sensitive paths
         if rel is not None and _is_sensitive(rel):
@@ -120,14 +133,26 @@ class PermissionEngine:
         if self.mode == "plan":
             return Decision(DENY, "plan mode is read-only (use --permission-mode acceptEdits to allow edits)")
         if self.mode == "acceptEdits":
+            # "accept edits" is a statement about file changes, not about
+            # arbitrary command execution, so a command tool still asks.
+            if rel is None and "command" in args:
+                return self._ask(tool, args, spec)
             return Decision(ALLOW)
         # 6. default mode -> ask; prompt if we can, else fail-closed
+        return self._ask(tool, args, spec)
+
+    def _ask(self, tool, args, spec) -> Decision:
+        """Prompt the user, or deny when there is nobody to ask."""
         if self.prompter is None:
-            return Decision(DENY, "requires approval; run with --permission-mode acceptEdits or add an allow rule")
+            return Decision(
+                DENY,
+                "requires approval; run with --permission-mode acceptEdits "
+                "or add an allow rule",
+            )
         answer = self.prompter(tool.name, args, spec)
         if answer == "deny":
             self._session_deny.add(spec)
             return Decision(DENY, "denied by user")
         if answer in ("allow_session", "always"):
-            self._session_allow.add(spec)  # (persisting 'always' to settings is a later step)
+            self._session_allow.add(spec)
         return Decision(ALLOW)

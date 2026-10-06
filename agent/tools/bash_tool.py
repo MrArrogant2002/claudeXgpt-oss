@@ -20,7 +20,7 @@ import re
 import shutil
 import subprocess
 
-from .. import config
+from .. import config, containment
 from .base import Tool
 from .shell_session import ShellSession, find_venv_activate
 
@@ -44,16 +44,44 @@ _DENY = [
 ]
 _DENY_RE = [re.compile(p, re.IGNORECASE) for p in _DENY]
 
-_MAX_STREAM = 20000  # chars kept before the loop's own budgeting
+def _max_stream() -> int:
+    return max(1000, config.BASH_MAX_OUTPUT)
 
 # One persistent session per project root (created on first use).
 _SESSIONS: dict[str, ShellSession] = {}
 
 
 def _tail(s: str) -> str:
-    if not s or len(s) <= _MAX_STREAM:
+    """Keep the tail of a command's output, within the configured cap.
+
+    The tail rather than the head: a failing build puts the error at the end.
+    """
+    cap = _max_stream()
+    if not s or len(s) <= cap:
         return s or ""
-    return f"... [truncated {len(s) - _MAX_STREAM} chars] ...\n" + s[-_MAX_STREAM:]
+    return f"... [truncated {len(s) - cap} chars] ...\n" + s[-cap:]
+
+
+def interrupt_all() -> int:
+    """Signal every live shell session. Called when the user cancels a turn."""
+    stopped = 0
+    for sess in list(_SESSIONS.values()):
+        try:
+            if sess.interrupt():
+                stopped += 1
+        except Exception:
+            pass
+    return stopped
+
+
+def close_all() -> None:
+    """Tear down every shell session (process exit)."""
+    for root, sess in list(_SESSIONS.items()):
+        try:
+            sess.close()
+        except Exception:
+            pass
+        _SESSIONS.pop(root, None)
 
 
 def _session_for(root: str) -> ShellSession:
@@ -82,12 +110,17 @@ def _run_oneshot(command: str, root: str, timeout: int) -> str:
         use_shell = False
     else:
         argv, use_shell = command, True
-    env = dict(os.environ)
-    env.setdefault("PYTHONIOENCODING", "utf-8")
+    if not use_shell:
+        argv = containment.wrap(argv, root)
+    env = containment.scrubbed_env()
+    kwargs: dict = {}
+    preexec = containment.rlimit_preexec()
+    if preexec is not None:
+        kwargs["preexec_fn"] = preexec
     try:
         proc = subprocess.run(
             argv, shell=use_shell, cwd=root, capture_output=True, text=True,
-            errors="replace", timeout=timeout, env=env,
+            errors="replace", timeout=timeout, env=env, **kwargs,
         )
     except subprocess.TimeoutExpired as e:
         partial = e.stdout if isinstance(e.stdout, str) else ""
@@ -104,6 +137,23 @@ def _run_oneshot(command: str, root: str, timeout: int) -> str:
     if not out.strip() and not err.strip():
         parts.append("(no output)")
     return "\n".join(parts)
+
+
+def _guard(args, sandbox):
+    """Tool-level objection for `bash`.
+
+    The permission engine only manages tools that expose `check_permissions`.
+    Without this, every command resolved to allow before any rule, mode or
+    protected-path check ran — so `plan` mode was not read-only and a protected
+    file that could not be edited could still be overwritten by a command.
+    """
+    if not (args.get("command") or "").strip():
+        return "deny"
+    if config.BASH_RESTRICTED:
+        for rx in _DENY_RE:
+            if rx.search(args["command"]):
+                return "deny"
+    return "ask"
 
 
 def _bash(args, sandbox):
@@ -167,4 +217,5 @@ bash_tool = Tool(
     },
     run=_bash,
     read_only=False,
+    check_permissions=_guard,
 )

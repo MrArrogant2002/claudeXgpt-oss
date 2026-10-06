@@ -30,6 +30,12 @@ def record_read(path, text):
     _READ_STATE[_key(path)] = _hash(text)
 
 
+def reset_read_state():
+    """Forget every recorded read. Called when the conversation is cleared, so
+    read-before-write cannot be satisfied by a turn the user has discarded."""
+    _READ_STATE.clear()
+
+
 def was_read(path):
     return _key(path) in _READ_STATE
 

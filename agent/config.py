@@ -63,6 +63,9 @@ TOOL_RESULT_CAP = int(os.environ.get("AGENT_TOOL_RESULT_CAP", "12000"))
 # Default number of lines `read` returns when no end line is given, so a bare
 # read of a 2000-line file can't blow the context window. The model can paginate.
 READ_DEFAULT_LINES = int(os.environ.get("AGENT_READ_DEFAULT_LINES", "300"))
+# Largest file `read` will open. It returns a window, but it must load the file
+# to slice it, so an unguarded read of a huge artifact exhausts memory.
+READ_MAX_BYTES = int(os.environ.get("AGENT_READ_MAX_BYTES", str(8_000_000)))
 
 # --- code execution (opt-in, off by default) --------------------------------
 # The `bash` tool runs arbitrary shell commands with YOUR user's privileges so
@@ -82,6 +85,35 @@ BASH_PERSISTENT = os.environ.get("AGENT_BASH_PERSISTENT", "1") not in ("0", "fal
 # but only applied when AGENT_BASH_RESTRICTED=1 — the single switch a future networked or
 # untrusted deployment turns on.
 BASH_RESTRICTED = os.environ.get("AGENT_BASH_RESTRICTED", "") not in ("", "0", "false", "False")
+
+# --- bash resource limits ---------------------------------------------------
+# Applied to every command so a runaway build, a fork bomb, or a test that
+# allocates without bound cannot take the machine down. On POSIX these become
+# setrlimit calls in the child; on Windows only the output cap and the timeout
+# apply (there is no portable rlimit equivalent).
+BASH_MAX_OUTPUT = int(os.environ.get("AGENT_BASH_MAX_OUTPUT", "20000"))  # chars kept
+BASH_CPU_SECONDS = int(os.environ.get("AGENT_BASH_CPU_SECONDS", "0"))    # 0 = use timeout only
+BASH_MEMORY_MB = int(os.environ.get("AGENT_BASH_MEMORY_MB", "4096"))     # 0 = unlimited
+BASH_MAX_FILE_MB = int(os.environ.get("AGENT_BASH_MAX_FILE_MB", "512"))  # 0 = unlimited
+BASH_MAX_PROCS = int(os.environ.get("AGENT_BASH_MAX_PROCS", "512"))      # 0 = unlimited
+# Environment variables never passed to a command. The agent reads repository
+# files; it should not also hand the shell whatever credentials happen to be in
+# the parent environment.
+BASH_ENV_DENY = tuple(
+    v.strip() for v in os.environ.get(
+        "AGENT_BASH_ENV_DENY",
+        "AWS_SECRET_ACCESS_KEY,AWS_SESSION_TOKEN,GITHUB_TOKEN,GH_TOKEN,"
+        "OPENAI_API_KEY,ANTHROPIC_API_KEY,HF_TOKEN,NPM_TOKEN,PYPI_TOKEN,"
+        "DOCKER_PASSWORD,SSH_AUTH_SOCK,GPG_TTY",
+    ).split(",") if v.strip()
+)
+
+# --- containment (optional, Linux) ------------------------------------------
+# "auto"   use bubblewrap when it is available (read-only outside the project
+#          root, no network); fall back to in-process limits otherwise
+# "off"    in-process limits only
+# "require" refuse to run bash unless bubblewrap is available
+CONTAINMENT = os.environ.get("AGENT_CONTAINMENT", "auto")
 
 # --- write tier (opt-in, permission-gated, off by default) ------------------
 # The write tools (edit/write/multi_edit) let the model CHANGE files. They are

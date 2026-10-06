@@ -98,26 +98,13 @@ def _sampling(temperature=None):
         params["repeat_penalty"] = config.REPEAT_PENALTY
     # Seed. llama.cpp draws a random seed when none is sent, which is why any
     # result produced without this line is not reproducible. Always log the value
-    # that is actually sent (see agent/trace.py).
     if getattr(config, "SEED", None) is not None:
         params["seed"] = config.SEED
     return params
 
 
-def _bump(counters, **deltas):
-    """Update a per-run RunCounters if one was supplied. The module-level USAGE
-    dict is kept for the legacy TUI, but it is process-wide and therefore unusable
-    for an in-process experiment sweep; `counters` is the per-run replacement."""
-    if counters is None:
-        return
-    for key, delta in deltas.items():
-        if hasattr(counters, key):
-            setattr(counters, key, getattr(counters, key) + delta)
-
-
 def complete(
     prefill_ids, stop_ids=None, max_tokens=None, temperature=None, cache_prompt=True,
-    extra_body=None, counters=None,
 ):
     """Send token IDs, get (output_token_ids, raw_response_dict).
 
@@ -132,11 +119,6 @@ def complete(
         "return_tokens": True,  # <-- include output token IDs in the response
         **_sampling(temperature),
     }
-    # Constrained-decoding parameters (`grammar`, `json_schema`) ride here. They
-    # are passed through verbatim so a server that does not support them fails
-    # loudly rather than silently generating unconstrained output.
-    if extra_body:
-        body.update(extra_body)
     try:
         r = requests.post(
             config.COMPLETION_URL, json=body, timeout=config.REQUEST_TIMEOUT
@@ -185,10 +167,6 @@ def complete(
     USAGE["output"] += len(tokens)
     USAGE["calls"] += 1
     USAGE["last_prompt"] = len(prefill_ids)
-    _bump(counters, calls=1, prompt_tokens=len(prefill_ids),
-          prompt_tokens_evaluated=evaluated, output_tokens=len(tokens))
-    if counters is not None:
-        counters.last_prompt_tokens = len(prefill_ids)
 
     return tokens, data
 
@@ -216,8 +194,6 @@ def complete_stream(
     temperature=None,
     cache_prompt=True,
     cancel=None,
-    extra_body=None,
-    counters=None,
 ):
     """Streaming variant of complete(). A GENERATOR that yields output token IDs
     as they arrive; its return value (StopIteration.value) is the final response
@@ -233,8 +209,6 @@ def complete_stream(
         "stream": True,
         **_sampling(temperature),
     }
-    if extra_body:
-        body.update(extra_body)
     try:
         resp = requests.post(
             config.COMPLETION_URL, json=body, stream=True, timeout=config.REQUEST_TIMEOUT
@@ -294,8 +268,4 @@ def complete_stream(
     USAGE["output"] += n_out
     USAGE["calls"] += 1
     USAGE["last_prompt"] = len(prefill_ids)
-    _bump(counters, calls=1, prompt_tokens=len(prefill_ids),
-          prompt_tokens_evaluated=evaluated, output_tokens=n_out)
-    if counters is not None:
-        counters.last_prompt_tokens = len(prefill_ids)
     return final

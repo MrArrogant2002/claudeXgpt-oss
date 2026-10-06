@@ -12,6 +12,8 @@ import re
 import shutil
 import subprocess
 
+from .. import config
+
 _IGNORE_DIRS = {
     ".git",
     ".svn",
@@ -40,7 +42,13 @@ def _grep_rg(args, sandbox):
     target = sandbox.resolve(args.get("path", "."))
     max_matches = int(args.get("max_matches", 100))
     context = max(0, min(int(args.get("context", 0)), 10))
-    cmd = ["rg", "--json"]
+    # Make ripgrep match the pure-Python fallback exactly. By default rg honours
+    # .gitignore and skips hidden files while the fallback does neither, so the
+    # same query returned different results depending on whether rg happened to
+    # be installed. Both now search everything except _IGNORE_DIRS.
+    cmd = ["rg", "--json", "--no-ignore-vcs"]
+    for d in sorted(_IGNORE_DIRS):
+        cmd += ["--glob", f"!{d}/"]
     if context:
         cmd += ["-C", str(context)]
     if args.get("glob"):
@@ -49,7 +57,13 @@ def _grep_rg(args, sandbox):
         cmd += ["-i"]
     cmd += ["--", args["pattern"], str(target)]
 
-    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    try:
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=config.EXEC_TIMEOUT
+        )
+    except subprocess.TimeoutExpired:
+        return (f"ERROR: search timed out after {config.EXEC_TIMEOUT}s — "
+                "narrow the pattern or restrict it with `path`/`glob`.")
     out = []
     matched = 0  # cap counts MATCH lines only, not context lines
     for line in proc.stdout.splitlines():
@@ -122,9 +136,12 @@ def _grep(args, sandbox):
     if not pattern:
         return "ERROR: grep requires a 'pattern' (the regex to search for)"
     args = {**args, "pattern": pattern}
-    if shutil.which("rg"):
-        return _grep_rg(args, sandbox)
-    return _grep_py(args, sandbox)
+    try:
+        if shutil.which("rg"):
+            return _grep_rg(args, sandbox)
+        return _grep_py(args, sandbox)
+    except (PermissionError, OSError, ValueError) as e:
+        return f"ERROR: {e}"
 
 
 grep_tool = Tool(

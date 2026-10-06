@@ -64,8 +64,6 @@ class App:
         stream=None,
         streaming=True,
         permission_mode=None,
-        decoder=None,
-        trace=None,
     ):
         self.sandbox = sandbox
         self.registry = registry
@@ -74,8 +72,6 @@ class App:
         self.show_reasoning = show_reasoning
         self.quiet = quiet
         self.streaming = streaming  # token-by-token output (P3)
-        self.decoder = decoder  # decoding arm; None = the unconstrained baseline
-        self.trace = trace
         self.history = []
         self.out = stream or sys.stdout
         self._events_q = None  # set per-turn; lets the permission prompter reach the queue
@@ -124,8 +120,6 @@ class App:
             parts.append(f"{GLYPH['warn']} {self._MODE_LABEL.get(self.permission_mode, self.permission_mode)}")
         else:
             parts.append("read-only")
-        if self.decoder is not None:
-            parts.append(f"decode:{self.decoder.name}")
         if config.ALLOW_EXEC:
             parts.append("exec:on")
         parts.append(f"ctx {render._hn(used)}/{render._hn(self.n_ctx)}")
@@ -181,6 +175,9 @@ class App:
 
     def _permission_preview(self, tool_name, args):
         """One-line summary of the pending change for the approval prompt."""
+        if tool_name == "bash":
+            cmd = " ; ".join((args.get("command") or "").strip().splitlines())
+            return f"run  {cmd[:120]}"
         path = args.get("path", "?")
         if tool_name == "write":
             n = len((args.get("content") or "").encode("utf-8", "replace"))
@@ -363,8 +360,6 @@ class App:
                     on_delta=on_delta,
                     can_use_tool=self.can_use_tool,
                     max_turns=max_turns,
-                    decoder=self.decoder,
-                    trace=self.trace,
                 )
                 result["res"], result["hist"] = res, hist
             except Exception as e:  # never let the worker kill the REPL
@@ -388,16 +383,37 @@ class App:
         except KeyboardInterrupt:
             interrupted = True
             cancel.set()
+            # A command already running holds the worker thread; cancelling the
+            # loop is not enough, so signal the shell too.
+            try:
+                # Import the module, not the package attribute: `agent.tools`
+                # re-exports the Tool object under the same name.
+                from ..tools.bash_tool import interrupt_all
+
+                if interrupt_all():
+                    self._p(render.system_note("interrupting running command…"))
+            except Exception:
+                pass
             spin.clear()
             if state["answering"] or state["thinking"]:
                 self._p()
                 state["answering"] = state["thinking"] = False
             self._p(render.system_note("interrupting…"))
         finally:
-            try:
-                t.join()
-            except KeyboardInterrupt:
-                pass
+            # Bounded joins, draining events in between, so the UI keeps
+            # repainting instead of looking hung while a command winds down.
+            deadline = time.time() + 5.0
+            while t.is_alive():
+                t.join(timeout=0.2)
+                try:
+                    while True:
+                        self._handle_item(events_q.get_nowait(), spin, state)
+                except queue.Empty:
+                    pass
+                if time.time() > deadline and cancel.is_set():
+                    self._p(render.system_note(
+                        "still finishing; it will stop at its timeout."))
+                    deadline = float("inf")
             spin.clear()
             try:
                 while True:
@@ -461,6 +477,15 @@ class App:
             self._print_help()
         elif cmd == "clear":
             self.history = []
+            # Drop read-before-write state too: otherwise a file "read" in a
+            # conversation the user has just wiped still counts as read, and an
+            # edit to it would be allowed on the strength of a vanished turn.
+            try:
+                from .. import edits
+
+                edits.reset_read_state()
+            except Exception:
+                pass
             self.out.write("\x1b[2J\x1b[H")  # clear screen + home
             self._p(render.system_note("history cleared."))
         elif cmd == "reasoning":

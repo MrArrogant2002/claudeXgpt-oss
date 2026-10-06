@@ -26,13 +26,32 @@ def _read(args, sandbox):
     rel = _pick(args, "path", "file_path", "filename")
     if not rel:
         return "ERROR: read requires a 'path'"
-    p = sandbox.resolve(rel)
+    try:
+        p = sandbox.resolve(rel)
+    except (PermissionError, OSError, ValueError) as e:
+        # A path outside the project is something the model can act on, not a
+        # crash: it should try another path rather than lose the turn.
+        return f"ERROR: {e}"
     if not p.exists():
         return f"(no such file: {rel})"
     if p.is_dir():
         return f"ERROR: {rel} is a directory — use list_dir to see its entries, or read a file inside it."
 
     from .. import edits
+
+    # Guard before reading: the tool returns a window of a few hundred lines, but
+    # read_text pulls the whole file into memory first. A committed dataset or a
+    # minified bundle would otherwise exhaust RAM to show 300 lines.
+    try:
+        size = p.stat().st_size
+    except OSError as e:
+        return f"ERROR: cannot stat {rel}: {e}"
+    if size > config.READ_MAX_BYTES:
+        return (
+            f"ERROR: {rel} is {size} bytes, over the {config.READ_MAX_BYTES}-byte "
+            "read limit. Use grep to find the relevant lines, or raise "
+            "AGENT_READ_MAX_BYTES."
+        )
 
     text = p.read_text(encoding="utf-8", errors="replace")
     if edits.looks_binary(text):

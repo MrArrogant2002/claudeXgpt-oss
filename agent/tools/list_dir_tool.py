@@ -8,7 +8,10 @@ _SKIP = {".git", ".svn", ".hg", "__pycache__", ".venv", "node_modules", ".agent-
 
 def _list_dir(args, sandbox):
     rel = args.get("path", ".") or "."
-    p = sandbox.resolve(rel)
+    try:
+        p = sandbox.resolve(rel)
+    except (PermissionError, OSError, ValueError) as e:
+        return f"ERROR: {e}"
     if not p.exists():
         return f"(no such path: {rel})"
     if not p.is_dir():
