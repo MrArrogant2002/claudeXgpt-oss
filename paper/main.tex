@@ -211,11 +211,14 @@ is~\cite{usama2026controltoken} C4.
 \input{figures/fig1-architecture}
 \caption{The offline code agent used in this work. The Harmony prompt is
 rendered to raw token identifiers client-side and the returned identifiers are
-parsed client-side, so no chat template intervenes. This is what makes the
-admission policy explicit at the call site, and what makes a token-level
-provenance check possible. Dashed nodes are attacker-controlled; the shaded node
-is contributed here. All components execute on one host, with no index or
-embedding model.}
+parsed client-side, so no chat template intervenes: this is what makes the
+admission policy explicit at the call site and a token-level provenance check
+possible at all. One token stream has two consumers, and deliberately not one
+implementation. The tolerant parser feeds history and display, salvaging
+malformed headers so a bad completion does not waste a turn; the provenance gate
+feeds dispatch, and refuses them. A text-level check cannot occupy the lower
+path, because the distinction it would have to make is absent from decoded text.
+Dashed nodes are attacker-controlled; the shaded node is contributed here.}
 \label{fig:system}
 \end{figure*}
 
@@ -393,11 +396,15 @@ tokenization~\cite{maloyan2026coding}.
 \begin{figure}[t]
 \centering
 \input{figures/fig3-dispatch-path}
-\caption{From attacker-controlled bytes to tool execution, and where the gate
-severs the path. Steps 1--5 are ordinary agent behaviour rather than an exploit:
-an agent that reads a file restates it. The gate conditions dispatch on token
-identity, so a header-shaped span never emitted as reserved identifiers cannot
-become a call.}
+\caption{From attacker-controlled bytes to tool execution, and the two
+independent points at which the path can be cut. Steps 1--5 are ordinary agent
+behaviour rather than an exploit: an agent that reads a file restates it. The
+renderer decides whether the forged span ever acquires reserved identifiers
+(C1); the gate decides whether a span lacking them can become a call (C3).
+Either cut alone breaks the chain, which is why the security claim does not rest
+on one of them. The categories on the right are what the gate reports in place
+of a repaired call, and they are the measurement grain of
+Table~\ref{tab:gate}.}
 \label{fig:dispatch}
 \end{figure}
 
@@ -423,7 +430,18 @@ prefix, suffix, case, or edit-distance matching.
 
 A failing candidate is not dispatched; it returns to the model as data, so a
 genuine malformation costs a turn rather than crashing the agent, and no
-fallback reconstructs a call from prose.
+fallback reconstructs a call from prose. The gate reports which condition
+failed, in the nine categories of Fig.~\ref{fig:dispatch}, so a rejection is a
+measurement rather than a silent drop.
+
+\textbf{Implementation.} The gate is about 230 lines of Python operating on the
+identifier sequence returned by one completion, with 31 unit tests. It does
+not reuse the agent's existing parser: that parser is deliberately tolerant,
+because salvaging a malformed header keeps a transcript renderable and avoids
+wasting a turn, and tolerance is exactly the wrong property for deciding what to
+execute. The two consumers of the token stream are therefore separate code
+paths (Fig.~\ref{fig:system}), which is a design consequence of the argument in
+this paper rather than an implementation detail.
 
 \subsection{Why a gate and not a sanitiser}
 

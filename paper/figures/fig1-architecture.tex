@@ -1,78 +1,101 @@
 % ---------------------------------------------------------------------------
-% Fig. 1 -- System architecture of the offline code agent.
-% Double-column (figure*). Wrapped in \resizebox so it can never overrun
-% \textwidth regardless of font or TikZ version.
+% Fig. 1 -- System architecture, revised to show where the provenance gate sits.
 %
-% Shaded node = contributed in this work.
-% Dashed node = untrusted input.
+% The architectural point the figure must make: ONE token stream returned by the
+% server has TWO consumers, and they are deliberately not the same code.
+%   * the tolerant parser feeds history and display, and salvages malformations
+%     so a bad completion does not waste a turn;
+%   * the provenance gate feeds dispatch, and refuses them.
+% Tolerance is right for keeping a transcript renderable and wrong for deciding
+% what to execute. A text-level check cannot sit on the lower path at all,
+% because the distinction it must make is not present in decoded text.
+%
+% Double-column (figure*). Wrapped in \resizebox so it cannot overrun.
+% Shaded = contributed here. Dashed = untrusted.
 % ---------------------------------------------------------------------------
 \resizebox{\textwidth}{!}{%
 \begin{tikzpicture}[
   font=\footnotesize,
-  blk/.style     = {draw, rounded corners=2pt, align=center, inner sep=4pt,
-                    minimum height=9mm, minimum width=26mm, fill=white},
-  gate/.style    = {blk, fill=black!14, line width=1pt},
-  tier/.style    = {blk, minimum width=34mm, minimum height=7mm},
-  untrusted/.style = {blk, dashed, fill=black!5, minimum width=34mm},
-  ar/.style      = {-{Stealth[length=2.2mm]}, line width=0.7pt},
-  arth/.style    = {-{Stealth[length=2.2mm]}, line width=1.4pt, densely dashed},
-  lbl/.style     = {font=\scriptsize, inner sep=2pt, fill=white}
+  blk/.style       = {draw, rounded corners=2pt, align=center, inner sep=4pt,
+                      minimum height=9mm, minimum width=27mm, fill=white},
+  gate/.style      = {blk, fill=black!14, line width=1pt, minimum width=34mm},
+  tier/.style      = {blk, minimum width=33mm, minimum height=6.5mm},
+  untrusted/.style = {blk, dashed, fill=black!5},
+  ar/.style        = {-{Stealth[length=2.2mm]}, line width=0.7pt},
+  arth/.style      = {-{Stealth[length=2.2mm]}, line width=1.4pt, densely dashed},
+  lbl/.style       = {font=\scriptsize, inner sep=2pt, fill=white}
 ]
 
-% ---- model path (left to right) ------------------------------------------
+% ---- model path -----------------------------------------------------------
 \node[blk, minimum width=30mm] (srv)
   {\texttt{llama.cpp /completion}\\gpt-oss-20b, MXFP4\\\emph{no chat template}};
 
-\node[blk, right=14mm of srv, minimum width=30mm] (codec)
-  {Harmony codec\\renders and parses\\raw token IDs};
+\node[blk, right=16mm of srv, minimum width=30mm] (codec)
+  {Harmony codec\\renders to, and returns,\\\textbf{raw token identifiers}};
 
-\node[gate, right=14mm of codec, minimum width=32mm] (gate)
-  {\textbf{Control-token}\\\textbf{provenance gate}\\\scriptsize(Sec.~\ref{sec:defense})};
-
-\node[blk, right=14mm of gate, minimum width=26mm] (disp)
-  {Tool dispatcher};
-
-\draw[ar] ([yshift=2.5mm]srv.east)  -- node[lbl, above]{prefill token IDs}
+\draw[ar] ([yshift=2.5mm]srv.east) -- node[lbl, above]{prefill ids}
           ([yshift=2.5mm]codec.west);
-\draw[ar] ([yshift=-2.5mm]codec.west) -- node[lbl, below]{output token IDs}
+\draw[ar] ([yshift=-2.5mm]codec.west) -- node[lbl, below]{output ids}
           ([yshift=-2.5mm]srv.east);
-\draw[ar] (codec) -- (gate);
-\draw[ar] (gate)  -- node[lbl, above]{admitted calls only} (disp);
 
-% ---- turn loop above ------------------------------------------------------
-\node[blk, above=10mm of codec, minimum width=34mm] (loop)
-  {Turn loop\\\scriptsize render $\rightarrow$ infer $\rightarrow$ parse $\rightarrow$ dispatch};
-\draw[ar] (loop) -- (codec);
+% ---- the fork: one token stream, two consumers ----------------------------
+\coordinate (fork) at ($(codec.east)+(8mm,0)$);
+\draw[line width=0.7pt] (codec.east) -- (fork);
+\node[lbl, above=0.5mm of fork] {one stream};
 
-% ---- tool tiers below the dispatcher -------------------------------------
-\node[tier, below=10mm of disp] (read)
+\node[blk, above right=4mm and 8mm of fork, minimum width=36mm] (parse)
+  {\textbf{tolerant} parse\\\scriptsize salvages malformed headers\\
+   \scriptsize $\rightarrow$ history, display};
+
+\node[gate, below right=4mm and 8mm of fork] (gate)
+  {\textbf{provenance gate}\\[1pt]
+   \scriptsize reserved ids $\cdot$ canonical order\\
+   \scriptsize this turn only $\cdot$ exact registry};
+
+\draw[ar] (fork) |- (parse.west);
+\draw[ar] (fork) |- (gate.west);
+
+\node[blk, right=12mm of gate, minimum width=25mm] (disp) {tool dispatcher};
+\draw[ar] (gate) -- node[lbl, above, align=center]{admitted\\calls only} (disp);
+
+% ---- turn loop, and the rejection path ------------------------------------
+\node[blk, above=9mm of parse, minimum width=40mm] (loop)
+  {Turn loop\\\scriptsize render $\rightarrow$ infer $\rightarrow$ admit $\rightarrow$ dispatch};
+\draw[ar] (parse) -- (loop);
+\draw[ar] (loop.west) -- ++(-8mm,0) |- (codec.north west);
+
+\draw[ar] (gate.south) -- ++(0,-5mm) -- ++(-54mm,0)
+  node[lbl, pos=0.55, below, align=center]{rejected $\rightarrow$ returned to the model as data}
+  |- (loop.west);
+
+% ---- tool tiers -----------------------------------------------------------
+\node[tier, right=12mm of disp] (read)
   {\textbf{read tier}\\\scriptsize \texttt{list\_dir} \texttt{glob} \texttt{grep} \texttt{read}};
-\node[tier, below=3mm of read] (exec)
+\node[tier, below=2.5mm of read] (exec)
   {\textbf{exec tier} \scriptsize \texttt{bash}};
-\node[tier, below=3mm of exec] (write)
+\node[tier, above=2.5mm of read] (write)
   {\textbf{write tier}\\\scriptsize \texttt{edit} \texttt{write} \texttt{multi\_edit}};
-
 \draw[ar] (disp) -- (read);
 
-% ---- enforcement ----------------------------------------------------------
-\node[blk, below=6mm of write, minimum width=72mm, minimum height=7mm] (enf)
+% ---- enforcement and the untrusted source ---------------------------------
+\node[blk, below=7mm of exec, minimum width=70mm, minimum height=7mm] (enf)
   {path sandbox \ $\cdot$ \ permission engine (5 modes, fail-closed)
-   \ $\cdot$ \ \texttt{bubblewrap} containment};
-\draw[ar] (exec.west) -- ++(-6mm,0) |- (enf.west);
+   \ $\cdot$ \ \texttt{bubblewrap}};
+\draw[ar] (exec) -- (enf);
 
-% ---- untrusted source -----------------------------------------------------
-\node[untrusted, below=6mm of enf, minimum width=72mm] (repo)
+\node[untrusted, below=6mm of enf, minimum width=70mm] (repo)
   {\textbf{repository} --- files, filenames, dependency metadata, build output\\
    \scriptsize \emph{attacker-controlled}};
 \draw[arth] (repo) -- node[lbl, right]{untrusted bytes} (enf);
 
-% ---- the return edge that closes the loop --------------------------------
-\draw[arth] (read.west) -- ++(-10mm,0)
-   |- node[lbl, pos=0.25, left, align=right]{tool results\\(untrusted)} (loop.east);
+% ---- the edge that closes the loop, and why the gate is upstream of it ----
+\draw[arth] (enf.west) -- ++(-10mm,0)
+  node[lbl, pos=0.9, left, align=right]{tool results\\(untrusted)}
+  |- (codec.south west);
 
 % ---- host boundary --------------------------------------------------------
 \node[draw, dashed, line width=0.8pt, rounded corners=3pt,
-      fit=(srv)(loop)(disp)(repo)(enf), inner sep=5mm] (host) {};
+      fit=(srv)(loop)(write)(repo)(enf)(gate), inner sep=5mm] (host) {};
 \node[anchor=north west, font=\small\itshape] at (host.north west)
   {\ \ one host $\cdot$ no network egress $\cdot$ no index, no embedding model};
 
