@@ -1,0 +1,68 @@
+% ---------------------------------------------------------------------------
+% Fig. 3 -- The path from attacker-controlled bytes to tool execution, and the
+% point at which the provenance gate severs it.
+%
+% Greyscale-safe: no colour carries meaning. The cut is drawn, not symbolic,
+% so it survives black-and-white printing.
+%
+% Single column.
+% ---------------------------------------------------------------------------
+\resizebox{\columnwidth}{!}{%
+\begin{tikzpicture}[
+  font=\scriptsize,
+  step/.style  = {draw, rounded corners=2pt, align=center, inner sep=3.5pt,
+                  minimum height=6.5mm, text width=52mm, fill=white},
+  untr/.style  = {step, densely dashed, fill=black!6},
+  gate/.style  = {step, fill=black!14, line width=1pt},
+  sink/.style  = {step, fill=white},
+  ar/.style    = {-{Stealth[length=2mm]}, line width=0.7pt},
+  num/.style   = {font=\tiny\bfseries, inner sep=1pt}
+]
+
+\node[untr] (s1)
+  {\textbf{1} \ A repository file contains a header-shaped span\\
+   \scriptsize\texttt{...\hmtok{channel}commentary to=functions.bash...}};
+
+\node[untr, below=3.2mm of s1] (s2)
+  {\textbf{2} \ \texttt{read} or \texttt{grep} returns it as a tool result};
+
+\node[step, below=3.2mm of s2] (s3)
+  {\textbf{3} \ The result enters the context verbatim};
+
+\node[step, below=3.2mm of s3] (s4)
+  {\textbf{4} \ The model restates it while reasoning\\
+   \scriptsize(ordinary behaviour when summarising a file)};
+
+\node[step, below=3.2mm of s4] (s5)
+  {\textbf{5} \ A header-shaped span appears in model output ---\\
+   \scriptsize \emph{byte-identical} to a header the model authored};
+
+\node[gate, below=4.5mm of s5] (g)
+  {\textbf{Control-token provenance gate}\\
+   \scriptsize reserved-ID sequence must be canonical\\
+   \scriptsize recipient must match the registry exactly};
+
+\node[sink, below=7mm of g] (s7)
+  {\textbf{6} \ \texttt{bash} executes the attacker's command};
+
+\draw[ar] (s1) -- (s2);
+\draw[ar] (s2) -- (s3);
+\draw[ar] (s3) -- (s4);
+\draw[ar] (s4) -- (s5);
+\draw[ar] (s5) -- (g);
+\draw[ar] (g)  -- (s7);
+
+% ---- the cut --------------------------------------------------------------
+\coordinate (cut) at ($(g.south)!0.5!(s7.north)$);
+\draw[line width=1.1pt] ($(cut)+(-2mm,-2mm)$) -- ($(cut)+(2mm,2mm)$);
+\draw[line width=1.1pt] ($(cut)+(-2mm,2mm)$) -- ($(cut)+(2mm,-2mm)$);
+\node[anchor=west, font=\tiny\itshape, align=left] at ($(cut)+(4mm,0)$)
+  {no reserved-ID header\\$\Rightarrow$ not a call};
+
+% ---- what the gate replaces ----------------------------------------------
+\node[anchor=east, font=\tiny\itshape, align=right, text width=22mm]
+  at ($(g.west)+(-2mm,0)$)
+  {replaces tolerant parsing and prose-level recovery};
+
+\end{tikzpicture}%
+}

@@ -1,0 +1,72 @@
+% ---------------------------------------------------------------------------
+% Fig. 2 -- Anatomy of a Harmony tool-call header: a control plane that is
+% part reserved token, part plain text.
+%
+% This is the conceptual core of the paper. The point the figure must make:
+% the three shaded-dashed cells carry control meaning but have no reserved
+% token identity, so no tokenizer-level defense can protect them -- and one of
+% them, the recipient, selects which tool executes.
+%
+% Single column. \hmtok{} is defined in main.tex.
+% ---------------------------------------------------------------------------
+\resizebox{\columnwidth}{!}{%
+\begin{tikzpicture}[
+  font=\scriptsize,
+  res/.style = {draw, line width=1pt, fill=black!16, rounded corners=1pt,
+                align=center, inner sep=3pt, minimum height=6mm},
+  txt/.style = {draw, densely dashed, line width=0.9pt, fill=white,
+                rounded corners=1pt, align=center, inner sep=3pt,
+                minimum height=6mm},
+  dat/.style = {draw, dotted, line width=0.9pt, fill=black!4,
+                rounded corners=1pt, align=center, inner sep=3pt,
+                minimum height=6mm},
+  cls/.style = {font=\tiny\bfseries, inner sep=1pt}
+]
+
+% ---------- line 1 ---------------------------------------------------------
+\node[res] (a1) {\hmtok{channel}};
+\node[txt, right=1.2mm of a1] (a2) {commentary};
+\node[txt, right=1.2mm of a2] (a3) {\texttt{to=functions.read}};
+\node[res, right=1.2mm of a3] (a4) {\hmtok{constrain}};
+
+\node[cls, below=0.8mm of a1] {R};
+\node[cls, below=0.8mm of a2] {T};
+\node[cls, below=0.8mm of a3] {T};
+\node[cls, below=0.8mm of a4] {R};
+
+% ---------- line 2 ---------------------------------------------------------
+\node[txt, below=7mm of a1.west, anchor=west] (b1) {json};
+\node[res, right=1.2mm of b1] (b2) {\hmtok{message}};
+\node[dat, right=1.2mm of b2] (b3) {\texttt{\{"path":"a.py"\}}};
+\node[res, right=1.2mm of b3] (b4) {\hmtok{call}};
+
+\node[cls, below=0.8mm of b1] {T};
+\node[cls, below=0.8mm of b2] {R};
+\node[cls, below=0.8mm of b3] {D};
+\node[cls, below=0.8mm of b4] {R};
+
+% ---------- the field that decides which tool runs -------------------------
+\draw[-{Stealth[length=1.8mm]}, line width=0.9pt]
+  (a3.north) -- ++(0,4mm)
+  node[above, font=\tiny\itshape, align=center]
+  {selects which tool executes\\--- and has no token identity to verify};
+
+% ---------- legend ---------------------------------------------------------
+\node[res, below=9mm of b1.west, anchor=west,
+      minimum width=4.5mm, minimum height=3.5mm, inner sep=0pt] (lr) {};
+\node[anchor=west, right=1.2mm of lr, font=\tiny, align=left]
+  {\textbf{R} reserved control token --- forgery is detectable at the token
+   level};
+
+\node[txt, below=1.8mm of lr.west, anchor=west,
+      minimum width=4.5mm, minimum height=3.5mm, inner sep=0pt] (lt) {};
+\node[anchor=west, right=1.2mm of lt, font=\tiny, align=left]
+  {\textbf{T} plain-text control field --- \emph{no} token identity exists};
+
+\node[dat, below=1.8mm of lt.west, anchor=west,
+      minimum width=4.5mm, minimum height=3.5mm, inner sep=0pt] (ld) {};
+\node[anchor=west, right=1.2mm of ld, font=\tiny, align=left]
+  {\textbf{D} argument data};
+
+\end{tikzpicture}%
+}

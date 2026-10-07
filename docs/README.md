@@ -27,3 +27,9 @@ what every component does, and the order it was built in.
 |-----|----------------|
 | [bash-upgrade.md](plans/bash-upgrade.md) | Persistent same-shell execution and env-aware commands |
 | [write-tools-build-plan.md](plans/write-tools-build-plan.md) | The permission-gated write tier (edit / write / multi_edit) |
+
+## Research - [`research/`](research/)
+
+| Doc | What it covers |
+|-----|----------------|
+| [paper-ideas.md](research/paper-ideas.md) | Publication directions from this codebase: Harmony control-plane integrity, tokenization, sandbox/offline security; recommended spine, work plan, and a verified reference list |

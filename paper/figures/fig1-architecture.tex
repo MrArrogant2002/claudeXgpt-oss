@@ -1,0 +1,80 @@
+% ---------------------------------------------------------------------------
+% Fig. 1 -- System architecture of the offline code agent.
+% Double-column (figure*). Wrapped in \resizebox so it can never overrun
+% \textwidth regardless of font or TikZ version.
+%
+% Shaded node = contributed in this work.
+% Dashed node = untrusted input.
+% ---------------------------------------------------------------------------
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  font=\footnotesize,
+  blk/.style     = {draw, rounded corners=2pt, align=center, inner sep=4pt,
+                    minimum height=9mm, minimum width=26mm, fill=white},
+  gate/.style    = {blk, fill=black!14, line width=1pt},
+  tier/.style    = {blk, minimum width=34mm, minimum height=7mm},
+  untrusted/.style = {blk, dashed, fill=black!5, minimum width=34mm},
+  ar/.style      = {-{Stealth[length=2.2mm]}, line width=0.7pt},
+  arth/.style    = {-{Stealth[length=2.2mm]}, line width=1.4pt, densely dashed},
+  lbl/.style     = {font=\scriptsize, inner sep=2pt, fill=white}
+]
+
+% ---- model path (left to right) ------------------------------------------
+\node[blk, minimum width=30mm] (srv)
+  {\texttt{llama.cpp /completion}\\gpt-oss-20b, MXFP4\\\emph{no chat template}};
+
+\node[blk, right=14mm of srv, minimum width=30mm] (codec)
+  {Harmony codec\\renders and parses\\raw token IDs};
+
+\node[gate, right=14mm of codec, minimum width=32mm] (gate)
+  {\textbf{Control-token}\\\textbf{provenance gate}\\\scriptsize(Sec.~\ref{sec:defense})};
+
+\node[blk, right=14mm of gate, minimum width=26mm] (disp)
+  {Tool dispatcher};
+
+\draw[ar] ([yshift=2.5mm]srv.east)  -- node[lbl, above]{prefill token IDs}
+          ([yshift=2.5mm]codec.west);
+\draw[ar] ([yshift=-2.5mm]codec.west) -- node[lbl, below]{output token IDs}
+          ([yshift=-2.5mm]srv.east);
+\draw[ar] (codec) -- (gate);
+\draw[ar] (gate)  -- node[lbl, above]{admitted calls only} (disp);
+
+% ---- turn loop above ------------------------------------------------------
+\node[blk, above=10mm of codec, minimum width=34mm] (loop)
+  {Turn loop\\\scriptsize render $\rightarrow$ infer $\rightarrow$ parse $\rightarrow$ dispatch};
+\draw[ar] (loop) -- (codec);
+
+% ---- tool tiers below the dispatcher -------------------------------------
+\node[tier, below=10mm of disp] (read)
+  {\textbf{read tier}\\\scriptsize \texttt{list\_dir} \texttt{glob} \texttt{grep} \texttt{read}};
+\node[tier, below=3mm of read] (exec)
+  {\textbf{exec tier} \scriptsize \texttt{bash}};
+\node[tier, below=3mm of exec] (write)
+  {\textbf{write tier}\\\scriptsize \texttt{edit} \texttt{write} \texttt{multi\_edit}};
+
+\draw[ar] (disp) -- (read);
+
+% ---- enforcement ----------------------------------------------------------
+\node[blk, below=6mm of write, minimum width=72mm, minimum height=7mm] (enf)
+  {path sandbox \ $\cdot$ \ permission engine (5 modes, fail-closed)
+   \ $\cdot$ \ \texttt{bubblewrap} containment};
+\draw[ar] (exec.west) -- ++(-6mm,0) |- (enf.west);
+
+% ---- untrusted source -----------------------------------------------------
+\node[untrusted, below=6mm of enf, minimum width=72mm] (repo)
+  {\textbf{repository} --- files, filenames, dependency metadata, build output\\
+   \scriptsize \emph{attacker-controlled}};
+\draw[arth] (repo) -- node[lbl, right]{untrusted bytes} (enf);
+
+% ---- the return edge that closes the loop --------------------------------
+\draw[arth] (read.west) -- ++(-10mm,0)
+   |- node[lbl, pos=0.25, left, align=right]{tool results\\(untrusted)} (loop.east);
+
+% ---- host boundary --------------------------------------------------------
+\node[draw, dashed, line width=0.8pt, rounded corners=3pt,
+      fit=(srv)(loop)(disp)(repo)(enf), inner sep=5mm] (host) {};
+\node[anchor=north west, font=\small\itshape] at (host.north west)
+  {\ \ one host $\cdot$ no network egress $\cdot$ no index, no embedding model};
+
+\end{tikzpicture}%
+}
