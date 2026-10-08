@@ -228,19 +228,26 @@ def _lenient_parse(output_token_ids):
     return msgs
 
 
-def parse(output_token_ids):
+def parse(output_token_ids, salvage=True):
     """Raw output token IDs -> list[Message] split across channels.
 
     Tries the strict official parser first; if it rejects the output (a malformed
     header, or any lower-level error surfaced by the Rust binding), falls back to a
     lenient regex parse so a single bad completion doesn't crash the agent. Raises
-    ParseError only if nothing at all can be salvaged."""
+    ParseError only if nothing at all can be salvaged.
+
+    `salvage=False` disables the lenient fallback, so a malformed completion
+    raises instead of being repaired. That is the `strict` dispatch arm (see
+    config.DISPATCH): the point of the arm is to measure what the repair is
+    worth, which requires a configuration in which it does not happen."""
     global SALVAGE_COUNT
     try:
         return _ENC.parse_messages_from_completion_tokens(
             output_token_ids, Role.ASSISTANT
         )
     except Exception as e:  # HarmonyError, or any binding-level error -> try salvage
+        if not salvage:
+            raise ParseError(str(e)) from e
         salvaged = _lenient_parse(output_token_ids)
         if salvaged:
             SALVAGE_COUNT += 1

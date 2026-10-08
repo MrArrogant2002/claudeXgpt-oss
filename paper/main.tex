@@ -36,9 +36,9 @@
 \usepackage{xcolor}
 \usepackage{booktabs}
 \usepackage{url}
-\usepackage{tikz}
-\usetikzlibrary{positioning,arrows.meta,fit,calc}
 \usepackage[hidelinks]{hyperref}
+% Figures are generated images (figures/make_figures.py), not TikZ, so no
+% drawing package is required. The TikZ originals are kept in figures/tikz/.
 
 % --- Visible placeholder for an unmeasured quantity. ----------------------
 \newcommand{\PH}[1]{\textcolor{red}{\textbf{[#1]}}}
@@ -208,7 +208,7 @@ is~\cite{usama2026controltoken} C4.
 
 \begin{figure*}[t]
 \centering
-\input{figures/fig1-architecture}
+\includegraphics[width=\textwidth]{figures/fig1-architecture.pdf}
 \caption{The offline code agent used in this work. The Harmony prompt is
 rendered to raw token identifiers client-side and the returned identifiers are
 parsed client-side, so no chat template intervenes: this is what makes the
@@ -329,7 +329,7 @@ the behaviour varies in practice, not as results.
 
 \begin{figure}[t]
 \centering
-\input{figures/fig2-control-plane}
+\includegraphics[width=\columnwidth]{figures/fig2-control-plane.pdf}
 \caption{A Harmony tool-call header interleaves two classes of control field.
 Cells marked \textbf{R} are reserved control tokens: a forgery is detectable,
 because the genuine field is one identifier and the forgery is a sequence of
@@ -395,16 +395,15 @@ tokenization~\cite{maloyan2026coding}.
 
 \begin{figure}[t]
 \centering
-\input{figures/fig3-dispatch-path}
+\includegraphics[width=\columnwidth]{figures/fig3-dispatch-path.pdf}
 \caption{From attacker-controlled bytes to tool execution, and the two
 independent points at which the path can be cut. Steps 1--5 are ordinary agent
 behaviour rather than an exploit: an agent that reads a file restates it. The
 renderer decides whether the forged span ever acquires reserved identifiers
 (C1); the gate decides whether a span lacking them can become a call (C3).
 Either cut alone breaks the chain, which is why the security claim does not rest
-on one of them. The categories on the right are what the gate reports in place
-of a repaired call, and they are the measurement grain of
-Table~\ref{tab:gate}.}
+on one of them. The categories below are what the gate reports in place of a
+repaired call, and they are the measurement grain of Table~\ref{tab:gate}.}
 \label{fig:dispatch}
 \end{figure}
 

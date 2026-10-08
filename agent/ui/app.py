@@ -64,6 +64,7 @@ class App:
         stream=None,
         streaming=True,
         permission_mode=None,
+        dispatch=None,
     ):
         self.sandbox = sandbox
         self.registry = registry
@@ -72,6 +73,8 @@ class App:
         self.show_reasoning = show_reasoning
         self.quiet = quiet
         self.streaming = streaming  # token-by-token output (P3)
+        # Which regions a tool call may be derived from; see config.DISPATCH.
+        self.dispatch = dispatch or config.DISPATCH
         self.history = []
         self.out = stream or sys.stdout
         self._events_q = None  # set per-turn; lets the permission prompter reach the queue
@@ -360,6 +363,7 @@ class App:
                     on_delta=on_delta,
                     can_use_tool=self.can_use_tool,
                     max_turns=max_turns,
+                    dispatch=self.dispatch,
                 )
                 result["res"], result["hist"] = res, hist
             except Exception as e:  # never let the worker kill the REPL

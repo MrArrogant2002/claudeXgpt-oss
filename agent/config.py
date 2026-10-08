@@ -55,6 +55,24 @@ MAX_TURNS = int(os.environ.get("AGENT_MAX_TURNS", "25"))
 # cut off productive multi-step work; consecutive empty-finals (3) are the primary guard.
 SYNTH_AFTER_STEPS = int(os.environ.get("AGENT_SYNTH_AFTER_STEPS", "10"))
 
+# --- dispatch arm (experimental) -------------------------------------------
+# Which regions of a completion the orchestrator may derive a tool call from.
+# Least to most permissive:
+#   strict    well-formed headers only; no salvage of malformed ones
+#   tolerant  + salvage a malformed header (duplicated recipient, stray channel)
+#   prose     + recover a call written as JSON in the reasoning channel
+#   gate      the control-token provenance gate (agent/provenance.py): reserved
+#             identifiers, canonical order, this turn only, exact registry match
+# `prose` is the default because it is what the agent did before the gate
+# existed, so a default run is the pre-existing behaviour and the baseline arm
+# is not a reimplementation of it.
+DISPATCH_MODES = ("strict", "tolerant", "prose", "gate")
+DISPATCH = os.environ.get("AGENT_DISPATCH", "prose")
+if DISPATCH not in DISPATCH_MODES:
+    raise ValueError(
+        f"AGENT_DISPATCH={DISPATCH!r} is not one of {DISPATCH_MODES}"
+    )
+
 # --- tools / sandbox --------------------------------------------------------
 # The project root the tools are allowed to touch. Default = current dir.
 PROJECT_ROOT = os.environ.get("AGENT_PROJECT_ROOT", os.getcwd())

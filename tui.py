@@ -57,6 +57,17 @@ def main():
         help="enable the write tools (edit/write/multi_edit); off by default",
     )
     ap.add_argument(
+        "--dispatch",
+        default=config.DISPATCH,
+        choices=list(config.DISPATCH_MODES),
+        help=(
+            "which regions a tool call may be derived from: strict (well-formed "
+            "headers only) | tolerant (+salvage) | prose (+calls written as "
+            "reasoning text; the default and the pre-existing behaviour) | gate "
+            "(control-token provenance gate)"
+        ),
+    )
+    ap.add_argument(
         "--permission-mode",
         default=config.PERMISSION_MODE,
         choices=["plan", "default", "acceptEdits", "bypassPermissions", "dontAsk"],
@@ -102,6 +113,7 @@ def main():
         quiet=args.quiet,
         streaming=not args.no_stream,
         permission_mode=permission_mode,
+        dispatch=args.dispatch,
     ).run()
 
 

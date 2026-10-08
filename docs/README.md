@@ -33,3 +33,9 @@ what every component does, and the order it was built in.
 | Doc | What it covers |
 |-----|----------------|
 | [paper-ideas.md](research/paper-ideas.md) | Publication directions from this codebase: Harmony control-plane integrity, tokenization, sandbox/offline security; recommended spine, work plan, and a verified reference list |
+
+## Runbooks
+
+| Doc | What it covers |
+|-----|----------------|
+| [gpu-runbook.md](gpu-runbook.md) | What to run on the GPU box: admission probe, the reference-attack replication that decides C1, and the dispatch-arm sweep |

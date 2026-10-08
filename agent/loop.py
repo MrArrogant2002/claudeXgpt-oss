@@ -12,7 +12,7 @@ chain-of-thought dropped at the start of each new user turn.
 import json
 from dataclasses import dataclass
 
-from . import compact, config, context, inference
+from . import compact, config, context, inference, provenance
 from . import harmony_codec as hc
 
 # Keys that unambiguously identify a tool when the model "leaks" a tool call as
@@ -86,6 +86,41 @@ def _infer_leaked_call(content, registry):
         if "pattern" in a:
             return "grep", a
     return None
+
+
+def _calls_from_header(fields):
+    """Tool calls as the tolerant parser sees them: a commentary message with a
+    recipient. Arguments are decoded here so a malformed body becomes data."""
+    out = []
+    for f in fields:
+        if f["channel"] != "commentary" or not f["recipient"]:
+            continue
+        recipient = f["recipient"]
+        try:
+            args = json.loads(f["content"]) if f["content"] else {}
+        except json.JSONDecodeError as e:
+            out.append((recipient, recipient.split(".")[-1], None,
+                        f"ERROR: invalid JSON arguments: {e}"))
+        else:
+            out.append((recipient, recipient.split(".")[-1], args, None))
+    return out
+
+
+def _calls_from_gate(out_tokens, registry, on_event):
+    """Tool calls as the provenance gate admits them.
+
+    Derived from the completion's token identifiers rather than from the parsed
+    text, which is the whole point: the distinction between a header the model
+    emitted and one it transcribed from untrusted input does not survive
+    decoding. Rejections are emitted as events so each one is measurable."""
+    result = provenance.admit(out_tokens, registry)
+    if on_event:
+        for rej in result.rejections:
+            on_event({
+                "role": "system", "channel": None, "recipient": None,
+                "content": f"[gate] rejected: {rej.reason.value} ({rej.detail})",
+            })
+    return [(c.recipient, c.name, c.arguments, None) for c in result.calls]
 
 
 def _run_tool_call(registry, name, args, sandbox, can_use_tool, on_event):
@@ -250,6 +285,7 @@ def run_turn(
     stream=False,
     on_delta=None,
     can_use_tool=None,
+    dispatch=None,
 ):
     """Run one user turn to completion. Returns (Result, updated_history).
 
@@ -263,6 +299,14 @@ def run_turn(
     doesn't support it.
     """
     max_turns = max_turns or config.MAX_TURNS
+    dispatch = dispatch or config.DISPATCH
+    if dispatch not in config.DISPATCH_MODES:
+        raise ValueError(f"dispatch={dispatch!r} not in {config.DISPATCH_MODES}")
+    # `strict` is the arm with no repair at all, so the lenient parse that keeps
+    # history renderable is also off: repairing for history and refusing for
+    # dispatch is what `gate` does, and conflating the two would make the two
+    # arms indistinguishable.
+    salvage = dispatch != "strict"
     instructions = instructions or DEFAULT_INSTRUCTIONS
     if registry.get("bash"):  # execution enabled -> teach the model to use it
         instructions = instructions + EXEC_INSTRUCTIONS
@@ -369,7 +413,7 @@ def run_turn(
 
         salvage_before = hc.salvage_count()
         try:
-            msgs = hc.parse(out_tokens)
+            msgs = hc.parse(out_tokens, salvage=salvage)
         except hc.ParseError:
             # Output was unparseable even leniently. Treat like an empty final:
             # drop it and nudge for a clean response, bounded by MAX_EMPTY_RECOVERY.
@@ -413,19 +457,19 @@ def run_turn(
             for f in fields:
                 on_event(f)
 
-        tool_calls = [
-            f for f in fields if f["channel"] == "commentary" and f["recipient"]
-        ]
+        # Which regions of this completion may a call be derived from? The arms
+        # differ here and nowhere else in the dispatch path, so the experimental
+        # variable is one branch rather than a fork of the loop.
+        if dispatch == "gate":
+            tool_calls = _calls_from_gate(out_tokens, registry, on_event)
+        else:
+            tool_calls = _calls_from_header(fields)
 
         # --- Tool calls: run them serially (Harmony may emit >1) and loop. ---
         if tool_calls:
-            for call in tool_calls:
-                recipient = call["recipient"]  # e.g. "functions.read"
-                name = recipient.split(".")[-1]
-                try:
-                    args = json.loads(call["content"]) if call["content"] else {}
-                except json.JSONDecodeError as e:
-                    result = f"ERROR: invalid JSON arguments: {e}"
+            for recipient, name, args, err in tool_calls:
+                if err is not None:
+                    result = err
                 else:
                     result = _run_tool_call(registry, name, args, sandbox, can_use_tool, on_event)
                 result = context.budget(result)
@@ -455,12 +499,18 @@ def run_turn(
         # The model sometimes writes a tool call as plain JSON in the reasoning/
         # commentary channel (no recipient) instead of emitting a real call, which
         # would otherwise waste this turn. If the tool is unambiguous, run it.
+        #
+        # This is the widest dispatch surface the agent has: because a model that
+        # reads a file routinely restates its contents while reasoning, the set
+        # of regions a call can be derived from transitively includes repository
+        # contents. It is therefore confined to the `prose` arm.
         leaked = None
-        for f in fields:
-            if f["channel"] in ("analysis", "commentary") and not f["recipient"]:
-                leaked = _infer_leaked_call(f["content"], registry)
-                if leaked:
-                    break
+        if dispatch == "prose":
+            for f in fields:
+                if f["channel"] in ("analysis", "commentary") and not f["recipient"]:
+                    leaked = _infer_leaked_call(f["content"], registry)
+                    if leaked:
+                        break
         if leaked:
             name, args = leaked
             recipient = f"functions.{name}"
